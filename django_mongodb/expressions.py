@@ -9,6 +9,7 @@ from django.db.models.expressions import (
     Case,
     Col,
     CombinedExpression,
+    Exists,
     ExpressionWrapper,
     F,
     NegatedExpression,
@@ -50,6 +51,15 @@ def case(self, compiler, connection):
 
 
 def col(self, compiler, connection):  # noqa: ARG001
+    # If it is a subquery and the columns belongs to one of the ancestors,
+    # the column shall be stored to be passed  using $let in a $lookup stage.
+    if self.alias in compiler.parent_collections:
+        try:
+            index = compiler.column_mapping[self]
+        except KeyError:
+            index = len(compiler.column_mapping)
+            compiler.column_mapping[self] = index
+        return f"$${compiler.PARENT_FIELD_TEMPLATE.format(index)}"
     # Add the column's collection's alias for columns in joined collections.
     prefix = f"{self.alias}." if self.alias != compiler.collection_name else ""
     return f"${prefix}{self.target.column}"
@@ -79,8 +89,64 @@ def order_by(self, compiler, connection):
     return self.expression.as_mql(compiler, connection)
 
 
-def query(self, compiler, connection):  # noqa: ARG001
-    raise NotSupportedError("Using a QuerySet in annotate() is not supported on MongoDB.")
+def query(self, compiler, connection):
+    subquery_compiler = self.get_compiler(connection=connection)
+    subquery_compiler.pre_sql_setup(with_col_aliases=False)
+    subquery_compiler.parent_collections = {compiler.collection_name} | compiler.parent_collections
+    columns = subquery_compiler.get_columns()
+    field_name, expr = columns[0]
+    subquery = subquery_compiler.build_query(
+        columns
+        if subquery_compiler.query.annotations or not subquery_compiler.query.default_cols
+        else None
+    )
+    table_output = f"__subquery{len(compiler.subqueries)}"
+    result_query = compiler.query_class(compiler)
+    pipeline = subquery.get_pipeline()
+    # the result must be a list of values. Se we compress the output
+    if not self.has_limit_one():
+        pipeline.extend(
+            [
+                {
+                    "$group": {
+                        "_id": None,
+                        "dummy_name": {"$addToSet": expr.as_mql(subquery_compiler, connection)},
+                    }
+                },
+                {"$project": {field_name: "$dummy_name"}},
+            ]
+        )
+    result_query.lookup_pipeline = [
+        {
+            "$lookup": {
+                "from": self.get_meta().db_table,
+                "pipeline": pipeline,
+                "as": table_output,
+                "let": {
+                    compiler.PARENT_FIELD_TEMPLATE.format(i): col.as_mql(compiler, connection)
+                    for col, i in subquery_compiler.column_mapping.items()
+                },
+            }
+        },
+        {
+            "$set": {
+                table_output: {
+                    "$cond": {
+                        "if": {
+                            "$or": [
+                                {"$eq": [{"$type": f"${table_output}"}, "missing"]},
+                                {"$eq": [{"$size": f"${table_output}"}, 0]},
+                            ]
+                        },
+                        "then": {},
+                        "else": {"$arrayElemAt": [f"${table_output}", 0]},
+                    }
+                }
+            }
+        },
+    ]
+    compiler.subqueries.append(result_query)
+    return f"${table_output}.{field_name}"
 
 
 def raw_sql(self, compiler, connection):  # noqa: ARG001
@@ -100,8 +166,13 @@ def star(self, compiler, connection):  # noqa: ARG001
     return {"$literal": True}
 
 
-def subquery(self, compiler, connection):  # noqa: ARG001
-    raise NotSupportedError(f"{self.__class__.__name__} is not supported on MongoDB.")
+def subquery(self, compiler, connection):
+    return self.query.as_mql(compiler, connection)
+
+
+def exists(self, compiler, connection):
+    lhs_mql = subquery(self, compiler, connection)
+    return connection.mongo_operators["isnull"](lhs_mql, False)
 
 
 def when(self, compiler, connection):
@@ -130,6 +201,7 @@ def register_expressions():
     Case.as_mql = case
     Col.as_mql = col
     CombinedExpression.as_mql = combined_expression
+    Exists.as_mql = exists
     ExpressionWrapper.as_mql = expression_wrapper
     F.as_mql = f
     NegatedExpression.as_mql = negated_expression

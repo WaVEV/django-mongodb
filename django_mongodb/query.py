@@ -50,7 +50,7 @@ class MongoQuery:
         self.collection = self.compiler.collection
         self.collection_name = self.compiler.collection_name
         self.mongo_query = getattr(compiler.query, "raw_query", {})
-        self.subquery = None
+        self.subqueries = None
         self.lookup_pipeline = None
         self.project_fields = None
         self.aggregation_pipeline = compiler.aggregation_pipeline
@@ -74,7 +74,9 @@ class MongoQuery:
         return self.collection.aggregate(self.get_pipeline())
 
     def get_pipeline(self):
-        pipeline = self.subquery.get_pipeline() if self.subquery else []
+        pipeline = []
+        for query in self.subqueries or ():
+            pipeline.extend(query.get_pipeline())
         if self.lookup_pipeline:
             pipeline.extend(self.lookup_pipeline)
         if self.mongo_query:
@@ -269,7 +271,7 @@ def where_node(self, compiler, connection):
         raise FullResultSet
 
     if self.negated and mql:
-        mql = {"$eq": [mql, {"$literal": False}]}
+        mql = {"$not": mql}
 
     return mql
 

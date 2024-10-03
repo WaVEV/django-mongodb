@@ -13,6 +13,7 @@ from django.db.models.functions.math import Power
 from django.db.models.lookups import IsNull
 from django.db.models.sql import compiler
 from django.db.models.sql.constants import GET_ITERATOR_CHUNK_SIZE, MULTI, SINGLE
+from django.db.models.sql.datastructures import BaseTable
 from django.utils.functional import cached_property
 from pymongo import ASCENDING, DESCENDING
 
@@ -25,12 +26,20 @@ class SQLCompiler(compiler.SQLCompiler):
 
     query_class = MongoQuery
     GROUP_SEPARATOR = "___"
+    PARENT_FIELD_TEMPLATE = "parent__field__{}"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.aggregation_pipeline = None
         # A list of OrderBy objects for this query.
         self.order_by_objs = None
+        # Subquery parent compiler.
+        self.parent_collections = set()
+        self.column_mapping = {}
+        self.subqueries = []
+
+    def get_parent(self):
+        return self.parent_compiler
 
     def _unfold_column(self, col):
         """
@@ -388,6 +397,7 @@ class SQLCompiler(compiler.SQLCompiler):
                 query.mongo_query = {"$expr": expr}
         if extra_fields:
             query.extra_fields = self.get_project_fields(extra_fields, force_expression=True)
+        query.subqueries = self.subqueries
         return query
 
     def get_columns(self):
@@ -431,7 +441,8 @@ class SQLCompiler(compiler.SQLCompiler):
 
     @cached_property
     def collection_name(self):
-        return self.query.get_meta().db_table
+        base_table = next(v for v in self.query.alias_map.values() if isinstance(v, BaseTable))
+        return base_table.table_alias or base_table.table_name
 
     @cached_property
     def collection(self):
@@ -581,7 +592,7 @@ class SQLCompiler(compiler.SQLCompiler):
         return tuple(fields), sort_ordering, tuple(extra_fields)
 
     def get_where(self):
-        return self.where
+        return getattr(self, "where", self.query.where)
 
     def explain_query(self):
         # Validate format (none supported) and options.
@@ -741,7 +752,7 @@ class SQLAggregateCompiler(SQLCompiler):
             else None
         )
         subquery = compiler.build_query(columns)
-        query.subquery = subquery
+        query.subqueries = [subquery]
         return query
 
     def _make_result(self, result, columns=None):
