@@ -441,7 +441,11 @@ class SQLCompiler(compiler.SQLCompiler):
 
     @cached_property
     def collection_name(self):
-        base_table = next(v for v in self.query.alias_map.values() if isinstance(v, BaseTable))
+        base_table = next(
+            v
+            for k, v in self.query.alias_map.items()
+            if isinstance(v, BaseTable) and self.query.alias_refcount[k]
+        )
         return base_table.table_alias or base_table.table_name
 
     @cached_property

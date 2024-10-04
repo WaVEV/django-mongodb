@@ -95,13 +95,13 @@ def query(self, compiler, connection):
     subquery_compiler.parent_collections = {compiler.collection_name} | compiler.parent_collections
     columns = subquery_compiler.get_columns()
     field_name, expr = columns[0]
+    result_query = subquery_compiler.query_class(subquery_compiler)
     subquery = subquery_compiler.build_query(
         columns
         if subquery_compiler.query.annotations or not subquery_compiler.query.default_cols
         else None
     )
     table_output = f"__subquery{len(compiler.subqueries)}"
-    result_query = compiler.query_class(compiler)
     pipeline = subquery.get_pipeline()
     # the result must be a list of values. Se we compress the output
     if not self.has_limit_one():
