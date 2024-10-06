@@ -95,57 +95,32 @@ def query(self, compiler, connection):
     subquery_compiler.parent_collections = {compiler.collection_name} | compiler.parent_collections
     columns = subquery_compiler.get_columns()
     field_name, expr = columns[0]
-    result_query = subquery_compiler.query_class(subquery_compiler)
     subquery = subquery_compiler.build_query(
         columns
         if subquery_compiler.query.annotations or not subquery_compiler.query.default_cols
         else None
     )
     table_output = f"__subquery{len(compiler.subqueries)}"
-    pipeline = subquery.get_pipeline()
-    # the result must be a list of values. Se we compress the output
+    subquery.lookup_data = {
+        "as": table_output,
+        "from": self.get_meta().db_table,
+        "let": {
+            compiler.PARENT_FIELD_TEMPLATE.format(i): col.as_mql(compiler, connection)
+            for col, i in subquery_compiler.column_mapping.items()
+        },
+    }
+    # the result must be a list of values. Se we compress the output with an aggregation pipeline.
     if not self.has_limit_one():
-        pipeline.extend(
-            [
-                {
-                    "$group": {
-                        "_id": None,
-                        "dummy_name": {"$addToSet": expr.as_mql(subquery_compiler, connection)},
-                    }
-                },
-                {"$project": {field_name: "$dummy_name"}},
-            ]
-        )
-    result_query.lookup_pipeline = [
-        {
-            "$lookup": {
-                "from": self.get_meta().db_table,
-                "pipeline": pipeline,
-                "as": table_output,
-                "let": {
-                    compiler.PARENT_FIELD_TEMPLATE.format(i): col.as_mql(compiler, connection)
-                    for col, i in subquery_compiler.column_mapping.items()
-                },
-            }
-        },
-        {
-            "$set": {
-                table_output: {
-                    "$cond": {
-                        "if": {
-                            "$or": [
-                                {"$eq": [{"$type": f"${table_output}"}, "missing"]},
-                                {"$eq": [{"$size": f"${table_output}"}, 0]},
-                            ]
-                        },
-                        "then": {},
-                        "else": {"$arrayElemAt": [f"${table_output}", 0]},
-                    }
+        subquery.aggregation_pipeline = [
+            {
+                "$group": {
+                    "_id": None,
+                    "dummy_name": {"$addToSet": expr.as_mql(subquery_compiler, connection)},
                 }
-            }
-        },
-    ]
-    compiler.subqueries.append(result_query)
+            },
+            {"$project": {field_name: "$dummy_name"}},
+        ]
+    compiler.subqueries.append(subquery)
     return f"${table_output}.{field_name}"
 
 

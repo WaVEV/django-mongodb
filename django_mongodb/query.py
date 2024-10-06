@@ -56,6 +56,7 @@ class MongoQuery:
         self.aggregation_pipeline = compiler.aggregation_pipeline
         self.extra_fields = None
         self.combinator_pipeline = None
+        self.lookup_data = None
 
     def __repr__(self):
         return f"<MongoQuery: {self.mongo_query!r} ORDER {self.ordering!r}>"
@@ -95,6 +96,27 @@ class MongoQuery:
             pipeline.append({"$skip": self.query.low_mark})
         if self.query.high_mark is not None:
             pipeline.append({"$limit": self.query.high_mark - self.query.low_mark})
+        if self.lookup_data:
+            table_output = self.lookup_data["as"]
+            pipeline = [
+                {"$lookup": {**self.lookup_data, "pipeline": pipeline}},
+                {
+                    "$set": {
+                        table_output: {
+                            "$cond": {
+                                "if": {
+                                    "$or": [
+                                        {"$eq": [{"$type": f"${table_output}"}, "missing"]},
+                                        {"$eq": [{"$size": f"${table_output}"}, 0]},
+                                    ]
+                                },
+                                "then": {},
+                                "else": {"$arrayElemAt": [f"${table_output}", 0]},
+                            }
+                        }
+                    }
+                },
+            ]
         return pipeline
 
 
