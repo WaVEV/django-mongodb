@@ -101,9 +101,12 @@ def query(self, compiler, connection):
         else None
     )
     table_output = f"__subquery{len(compiler.subqueries)}"
+    from_table = next(
+        e.table_name for alias, e in self.alias_map.items() if self.alias_refcount[alias]
+    )
     subquery.lookup_data = {
         "as": table_output,
-        "from": self.get_meta().db_table,
+        "from": from_table,
         "let": {
             compiler.PARENT_FIELD_TEMPLATE.format(i): col.as_mql(compiler, connection)
             for col, i in subquery_compiler.column_mapping.items()
