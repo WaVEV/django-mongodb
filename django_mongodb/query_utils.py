@@ -28,12 +28,14 @@ def process_lhs(node, compiler, connection):
 def process_rhs(node, compiler, connection):
     rhs = node.rhs
     if hasattr(rhs, "as_mql"):
-        value = rhs.as_mql(compiler, connection)
+        if getattr(rhs, "subquery", False):
+            value = rhs.as_mql(compiler, connection, lookup_name=node.lookup_name)
+        else:
+            value = rhs.as_mql(compiler, connection)
     else:
         _, value = node.process_rhs(compiler, connection)
-        lookup_name = node.lookup_name
         # Undo Lookup.get_db_prep_lookup() putting params in a list.
-        if lookup_name not in ("in", "range"):
+        if node.lookup_name not in ("in", "range"):
             value = value[0]
     if hasattr(node, "prep_lookup_value_mongo"):
         value = node.prep_lookup_value_mongo(value)

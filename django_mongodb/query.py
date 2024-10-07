@@ -76,10 +76,10 @@ class MongoQuery:
 
     def get_pipeline(self):
         pipeline = []
-        for query in self.subqueries or ():
-            pipeline.extend(query.get_pipeline())
         if self.lookup_pipeline:
             pipeline.extend(self.lookup_pipeline)
+        for query in self.subqueries or ():
+            pipeline.extend(query.get_pipeline())
         if self.mongo_query:
             pipeline.append({"$match": self.mongo_query})
         if self.aggregation_pipeline:

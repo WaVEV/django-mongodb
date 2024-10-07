@@ -53,7 +53,10 @@ def case(self, compiler, connection):
 def col(self, compiler, connection):  # noqa: ARG001
     # If it is a subquery and the columns belongs to one of the ancestors,
     # the column shall be stored to be passed  using $let in a $lookup stage.
-    if self.alias in compiler.parent_collections:
+    if (
+        self.alias not in compiler.query.alias_refcount
+        or compiler.query.alias_refcount[self.alias] == 0
+    ):
         try:
             index = compiler.column_mapping[self]
         except KeyError:
@@ -89,10 +92,9 @@ def order_by(self, compiler, connection):
     return self.expression.as_mql(compiler, connection)
 
 
-def query(self, compiler, connection):
+def query(self, compiler, connection, lookup_name=None):
     subquery_compiler = self.get_compiler(connection=connection)
     subquery_compiler.pre_sql_setup(with_col_aliases=False)
-    subquery_compiler.parent_collections = {compiler.collection_name} | compiler.parent_collections
     columns = subquery_compiler.get_columns()
     field_name, expr = columns[0]
     subquery = subquery_compiler.build_query(
@@ -112,8 +114,8 @@ def query(self, compiler, connection):
             for col, i in subquery_compiler.column_mapping.items()
         },
     }
-    # the result must be a list of values. Se we compress the output with an aggregation pipeline.
-    if not self.has_limit_one():
+    # The result must be a list of values. Se we compress the output with an aggregation pipeline.
+    if lookup_name in ("in", "range"):
         subquery.aggregation_pipeline = [
             {
                 "$group": {
@@ -144,8 +146,8 @@ def star(self, compiler, connection):  # noqa: ARG001
     return {"$literal": True}
 
 
-def subquery(self, compiler, connection):
-    return self.query.as_mql(compiler, connection)
+def subquery(self, compiler, connection, lookup_name=None):
+    return self.query.as_mql(compiler, connection, lookup_name=lookup_name)
 
 
 def exists(self, compiler, connection):
