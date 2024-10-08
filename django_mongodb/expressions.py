@@ -133,7 +133,9 @@ def raw_sql(self, compiler, connection):  # noqa: ARG001
     raise NotSupportedError("RawSQL is not supported on MongoDB.")
 
 
-def ref(self, compiler, connection):  # noqa: ARG001
+def ref(self, compiler, connection):
+    if isinstance(self.source, Subquery):
+        return self.source.as_mql(compiler, connection)
     prefix = (
         f"{self.source.alias}."
         if isinstance(self.source, Col) and self.source.alias != compiler.collection_name
