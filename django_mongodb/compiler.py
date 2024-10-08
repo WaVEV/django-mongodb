@@ -34,12 +34,8 @@ class SQLCompiler(compiler.SQLCompiler):
         # A list of OrderBy objects for this query.
         self.order_by_objs = None
         # Subquery parent compiler.
-        self.parent_collections = set()
         self.column_mapping = {}
         self.subqueries = []
-
-    def get_parent(self):
-        return self.parent_compiler
 
     def _unfold_column(self, col):
         """
@@ -163,23 +159,42 @@ class SQLCompiler(compiler.SQLCompiler):
         group.update(having_group)
         return group, replacements
 
-    def _get_group_id_expressions(self, order_by):
-        """Generate group ID expressions for the aggregation pipeline."""
-        group_expressions = set()
-        replacements = {}
+    def _get_group_expressions(self, order_by):
+        # The query.group_by is either None (no GROUP BY at all), True
+        # (group by select fields), or a list of expressions to be added
+        # to the group by.
+        if self.query.group_by is None:
+            return []
+        seen = set()
+        expressions = set()
+        if self.query.group_by is not True:
+            for expr in self.query.group_by:
+                if not hasattr(expr, "as_sql"):
+                    expr = self.query.resolve_ref(expr)
+                if isinstance(expr, Ref):
+                    if expr.refs not in seen:
+                        seen.add(expr.refs)
+                        expressions.add(expr.source)
+                else:
+                    expressions.add(expr)
+        for expr, _, alias in self.select:
+            # Skip members that are already grouped.
+            if alias not in seen:
+                expressions |= set(expr.get_group_by_cols())
         if not self._meta_ordering:
             for expr, (_, _, is_ref) in order_by:
+                # Skip references.
                 if not is_ref:
-                    group_expressions |= set(expr.get_group_by_cols())
-        for expr, *_ in self.select:
-            group_expressions |= set(expr.get_group_by_cols())
+                    expressions.extend(expr.get_group_by_cols())
         having_group_by = self.having.get_group_by_cols() if self.having else ()
         for expr in having_group_by:
-            group_expressions.add(expr)
-        if isinstance(self.query.group_by, tuple | list):
-            group_expressions |= set(self.query.group_by)
-        elif self.query.group_by is None:
-            group_expressions = set()
+            expressions.add(expr)
+        return self.collapse_group_by(expressions, having_group_by)
+
+    def _get_group_id_expressions(self, order_by):
+        """Generate group ID expressions for the aggregation pipeline."""
+        replacements = {}
+        group_expressions = self._get_group_expressions(order_by)
         if not group_expressions:
             ids = None
         else:
@@ -195,6 +210,8 @@ class SQLCompiler(compiler.SQLCompiler):
                     ids[alias] = Value(True).as_mql(self, self.connection)
                 if replacement is not None:
                     replacements[col] = replacement
+                    if isinstance(col, Ref):
+                        replacements[col.source] = replacement
         return ids, replacements
 
     def _build_aggregation_pipeline(self, ids, group):
