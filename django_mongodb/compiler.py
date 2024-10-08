@@ -254,15 +254,15 @@ class SQLCompiler(compiler.SQLCompiler):
             all_replacements.update(replacements)
             pipeline = self._build_aggregation_pipeline(ids, group)
             if self.having:
-                pipeline.append(
-                    {
-                        "$match": {
-                            "$expr": self.having.replace_expressions(all_replacements).as_mql(
-                                self, self.connection
-                            )
-                        }
-                    }
+                having = self.having.replace_expressions(all_replacements).as_mql(
+                    self, self.connection
                 )
+                # Add having subqueries.
+                for query in self.subqueries or ():
+                    pipeline.extend(query.get_pipeline())
+                # Clean added subqueries.
+                self.subqueries = None
+                pipeline.append({"$match": {"$expr": having}})
             self.aggregation_pipeline = pipeline
         self.annotations = {
             target: expr.replace_expressions(all_replacements)
