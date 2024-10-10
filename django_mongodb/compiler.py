@@ -185,7 +185,7 @@ class SQLCompiler(compiler.SQLCompiler):
             for expr, (_, _, is_ref) in order_by:
                 # Skip references.
                 if not is_ref:
-                    expressions.extend(expr.get_group_by_cols())
+                    expressions |= set(expr.get_group_by_cols())
         having_group_by = self.having.get_group_by_cols() if self.having else ()
         for expr in having_group_by:
             expressions.add(expr)
