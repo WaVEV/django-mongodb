@@ -51,8 +51,8 @@ def case(self, compiler, connection):
 
 
 def col(self, compiler, connection):  # noqa: ARG001
-    # If it is a subquery and the columns belongs to one of the ancestors,
-    # the column shall be stored to be passed  using $let in a $lookup stage.
+    # If the column is part of a subquery and belongs to one of the parent queries,
+    # it will be stored for reference using $let in a $lookup stage.
     if (
         self.alias not in compiler.query.alias_refcount
         or compiler.query.alias_refcount[self.alias] == 0
