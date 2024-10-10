@@ -393,6 +393,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
             "lookup.tests.LookupTests.test_textfield_exact_null",
             "migrations.test_commands.MigrateTests.test_migrate_syncdb_app_label",
             "migrations.test_commands.MigrateTests.test_migrate_syncdb_deferred_sql_executed_with_schemaeditor",
+            "queries.tests.ExcludeTests.test_exclude_multivalued_exists",
             "queries.tests.ExistsSql.test_exists",
             "queries.tests.Queries6Tests.test_col_alias_quoted",
             "schema.tests.SchemaTests.test_rename_column_renames_deferred_sql_references",
