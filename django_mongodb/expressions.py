@@ -173,7 +173,10 @@ def subquery(self, compiler, connection, lookup_name=None):
 
 
 def exists(self, compiler, connection):
-    lhs_mql = subquery(self, compiler, connection)
+    try:
+        lhs_mql = subquery(self, compiler, connection)
+    except EmptyResultSet:
+        return Value(False).as_mql(compiler, connection)
     return connection.mongo_operators["isnull"](lhs_mql, False)
 
 
