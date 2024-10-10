@@ -118,12 +118,34 @@ def query(self, compiler, connection, lookup_name=None):
     if lookup_name in ("in", "range"):
         subquery.aggregation_pipeline = [
             {
-                "$group": {
-                    "_id": None,
-                    "dummy_name": {"$addToSet": expr.as_mql(subquery_compiler, connection)},
+                "$facet": {
+                    "group": [
+                        {
+                            "$group": {
+                                "_id": None,
+                                "tmp_name": {
+                                    "$addToSet": expr.as_mql(subquery_compiler, connection)
+                                },
+                            }
+                        }
+                    ]
                 }
             },
-            {"$project": {field_name: "$dummy_name"}},
+            {
+                "$project": {
+                    field_name: {
+                        "$ifNull": [
+                            {
+                                "$getField": {
+                                    "input": {"$arrayElemAt": ["$group", 0]},
+                                    "field": "tmp_name",
+                                }
+                            },
+                            [],
+                        ]
+                    }
+                }
+            },
         ]
     compiler.subqueries.append(subquery)
     return f"${table_output}.{field_name}"
