@@ -261,7 +261,7 @@ class SQLCompiler(compiler.SQLCompiler):
                 for query in self.subqueries or ():
                     pipeline.extend(query.get_pipeline())
                 # Clean added subqueries.
-                self.subqueries = None
+                self.subqueries = []
                 pipeline.append({"$match": {"$expr": having}})
             self.aggregation_pipeline = pipeline
         self.annotations = {
