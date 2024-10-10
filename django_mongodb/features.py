@@ -102,8 +102,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         # Union as subquery is not mapping the parent parameter and collections.
         "queries.test_qs_combinators.QuerySetSetOperationTests.test_union_in_subquery_related_outerref",
         "queries.test_qs_combinators.QuerySetSetOperationTests.test_union_in_subquery",
-        # Log with Decimal128 isn't working as expected.
-        "db_functions.math.test_log.LogTests.test_decimal",
     }
     # $bitAnd, #bitOr, and $bitXor are new in MongoDB 6.3.
     _django_test_expected_failures_bitwise = {
