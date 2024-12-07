@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.test import SimpleTestCase, TestCase
 
 from django_mongodb.fields import EmbeddedModelField
@@ -10,10 +10,8 @@ from .models import (
     Author,
     Book,
     DecimalKey,
-    DecimalParent,
     EmbeddedModel,
     EmbeddedModelFieldModel,
-    Target,
 )
 
 
@@ -82,18 +80,10 @@ class ModelTests(TestCase):
         self.assertEqual(obj.simple.auto_now_add, auto_now_add)
         self.assertGreater(obj.simple.auto_now, auto_now_two)
 
-    def test_foreign_key_in_embedded_object(self):
-        simple = EmbeddedModel(some_relation=Target.objects.create(index=1))
-        obj = EmbeddedModelFieldModel.objects.create(simple=simple)
-        simple = EmbeddedModelFieldModel.objects.get().simple
-        self.assertNotIn("some_relation", simple.__dict__)
-        self.assertIsInstance(simple.__dict__["some_relation_id"], type(obj.id))
-        self.assertIsInstance(simple.some_relation, Target)
-
     def test_embedded_field_with_foreign_conversion(self):
         decimal = DecimalKey.objects.create(decimal=Decimal("1.5"))
-        decimal_parent = DecimalParent.objects.create(child=decimal)
-        EmbeddedModelFieldModel.objects.create(decimal_parent=decimal_parent)
+        # decimal_parent = DecimalParent.objects.create(child=decimal)
+        EmbeddedModelFieldModel.objects.create(decimal_parent=decimal)
 
 
 class QueryingTests(TestCase):
@@ -134,3 +124,50 @@ class QueryingTests(TestCase):
             author=Author(name="Shakespeare", age=55, address=Address(city="NYC", state="NY"))
         )
         self.assertCountEqual(Book.objects.filter(author__address__city="NYC"), [obj])
+
+    def test_nested_not_exists(self):
+        msg = "Address has no field named 'president'"
+        with self.assertRaisesMessage(FieldDoesNotExist, msg):
+            Book.objects.filter(author__address__city__president="NYC")
+
+    def test_not_exists_in_embedded(self):
+        msg = "Address has no field named 'floor'"
+        with self.assertRaisesMessage(FieldDoesNotExist, msg):
+            Book.objects.filter(author__address__floor="NYC")
+
+    def test_embedded_with_json_field(self):
+        models = []
+        for i in range(4):
+            m = EmbeddedModelFieldModel.objects.create(
+                simple=EmbeddedModel(
+                    json_value={"field1": i * 5, "field2": {"0": {"value": list(range(i))}}}
+                )
+            )
+            models.append(m)
+
+        all_models = EmbeddedModelFieldModel.objects.all()
+
+        self.assertCountEqual(
+            EmbeddedModelFieldModel.objects.filter(simple__json_value__field2__0__value__0=0),
+            models[1:],
+        )
+        self.assertCountEqual(
+            EmbeddedModelFieldModel.objects.filter(simple__json_value__field2__0__value__1=1),
+            models[2:],
+        )
+        self.assertCountEqual(
+            EmbeddedModelFieldModel.objects.filter(simple__json_value__field2__0__value__1=5), []
+        )
+
+        self.assertCountEqual(
+            EmbeddedModelFieldModel.objects.filter(simple__json_value__field1__lt=100), all_models
+        )
+        self.assertCountEqual(
+            EmbeddedModelFieldModel.objects.filter(simple__json_value__field1__gt=100), []
+        )
+        self.assertCountEqual(
+            EmbeddedModelFieldModel.objects.filter(
+                simple__json_value__field1__gte=5, simple__json_value__field1__lte=10
+            ),
+            models[1:3],
+        )

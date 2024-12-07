@@ -1,3 +1,4 @@
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from django.db.models.fields.related import lazy_related_operation
 from django.db.models.lookups import Transform
@@ -115,7 +116,8 @@ class EmbeddedModelField(models.Field):
         transform = super().get_transform(name)
         if transform:
             return transform
-        return KeyTransformFactory(name)
+        field = self.embedded_model._meta.get_field(name)
+        return KeyTransformFactory(name, field)
 
     def validate(self, value, model_instance):
         super().validate(value, model_instance)
@@ -137,32 +139,67 @@ class EmbeddedModelField(models.Field):
 
 
 class KeyTransform(Transform):
-    def __init__(self, key_name, *args, **kwargs):
+    def __init__(self, key_name, ref_field=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.key_name = str(key_name)
+        self.ref_field = ref_field
+
+    def get_transform(self, name):
+        result = None
+        if isinstance(self.ref_field, EmbeddedModelField):
+            opts = self.ref_field.embedded_model._meta
+            new_field = opts.get_field(name)
+            result = KeyTransformFactory(name, new_field)
+        else:
+            if self.ref_field is not None and self.ref_field.get_transform(name) is None:
+                raise FieldDoesNotExist(
+                    f"{self.ref_field.model._meta.object_name} has no field named '{name}'"
+                )
+            result = KeyTransformFactory(name, None)
+        return result
 
     def preprocess_lhs(self, compiler, connection):
-        key_transforms = [self.key_name]
-        previous = self.lhs
+        previous = self
+        embedded_key_transforms = []
+        json_key_transforms = []
         while isinstance(previous, KeyTransform):
-            key_transforms.insert(0, previous.key_name)
+            if previous.ref_field is not None:
+                embedded_key_transforms.insert(0, previous.key_name)
+            else:
+                json_key_transforms.insert(0, previous.key_name)
             previous = previous.lhs
         mql = previous.as_mql(compiler, connection)
-        return mql, key_transforms
+        return mql, embedded_key_transforms, json_key_transforms
 
 
 def key_transform(self, compiler, connection):
-    mql, key_transforms = self.preprocess_lhs(compiler, connection)
+    mql, key_transforms, json_key_transforms = self.preprocess_lhs(compiler, connection)
     transforms = ".".join(key_transforms)
-    return f"{mql}.{transforms}"
+    result = f"{mql}.{transforms}"
+    for key in json_key_transforms:
+        get_field = {"$getField": {"input": result, "field": key}}
+        # Handle array indexing if the key is a digit. If key is something
+        # like '001', it's not an array index despite isdigit() returning True.
+        if key.isdigit() and str(int(key)) == key:
+            result = {
+                "$cond": {
+                    "if": {"$isArray": result},
+                    "then": {"$arrayElemAt": [result, int(key)]},
+                    "else": get_field,
+                }
+            }
+        else:
+            result = get_field
+    return result
 
 
 class KeyTransformFactory:
-    def __init__(self, key_name):
+    def __init__(self, key_name, ref_field=None):
         self.key_name = key_name
+        self.ref_field = ref_field
 
     def __call__(self, *args, **kwargs):
-        return KeyTransform(self.key_name, *args, **kwargs)
+        return KeyTransform(self.key_name, self.ref_field, *args, **kwargs)
 
 
 def register_embedded_model_field():

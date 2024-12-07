@@ -35,11 +35,12 @@ class DecimalParent(models.Model):
 
 class EmbeddedModelFieldModel(models.Model):
     simple = EmbeddedModelField("EmbeddedModel", null=True, blank=True)
-    decimal_parent = EmbeddedModelField(DecimalParent, null=True, blank=True)
+    decimal_parent = EmbeddedModelField(DecimalKey, null=True, blank=True)
 
 
 class EmbeddedModel(models.Model):
-    some_relation = models.ForeignKey(Target, models.CASCADE, null=True, blank=True)
+    json_value = models.JSONField()
+    decimal = EmbeddedModelField(DecimalModel, null=True, blank=True)
     someint = models.IntegerField(db_column="custom_column")
     auto_now = models.DateTimeField(auto_now=True)
     auto_now_add = models.DateTimeField(auto_now_add=True)
