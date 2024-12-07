@@ -17,6 +17,8 @@ from django.db.models.sql.datastructures import BaseTable
 from django.utils.functional import cached_property
 from pymongo import ASCENDING, DESCENDING
 
+from django_mongodb.fields import EmbeddedModelField
+
 from .base import Cursor
 from .query import MongoQuery, wrap_database_errors
 
@@ -547,7 +549,11 @@ class SQLCompiler(compiler.SQLCompiler):
     def get_lookup_pipeline(self):
         result = []
         for alias in tuple(self.query.alias_map):
-            if not self.query.alias_refcount[alias] or self.collection_name == alias:
+            if (
+                not self.query.alias_refcount[alias]
+                or self.collection_name == alias
+                or isinstance(self.query.alias_map[alias].join_field, EmbeddedModelField)
+            ):
                 continue
             result += self.query.alias_map[alias].as_mql(self, self.connection)
         return result
