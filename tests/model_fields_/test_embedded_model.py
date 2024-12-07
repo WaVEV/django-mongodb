@@ -139,6 +139,35 @@ class QueryingTests(TestCase):
             ],
         )
 
+    def test_embedded_with_json_field(self):
+        models = []
+        for i in range(4):
+            m = Holder.objects.create(
+                data=Data(json_value={"field1": i * 5, "field2": {"0": {"value": list(range(i))}}})
+            )
+            models.append(m)
+
+        all_models = Holder.objects.all()
+
+        self.assertCountEqual(
+            Holder.objects.filter(data__json_value__field2__0__value__0=0),
+            models[1:],
+        )
+        self.assertCountEqual(
+            Holder.objects.filter(data__json_value__field2__0__value__1=1),
+            models[2:],
+        )
+        self.assertCountEqual(Holder.objects.filter(data__json_value__field2__0__value__1=5), [])
+
+        self.assertCountEqual(Holder.objects.filter(data__json_value__field1__lt=100), all_models)
+        self.assertCountEqual(Holder.objects.filter(data__json_value__field1__gt=100), [])
+        self.assertCountEqual(
+            Holder.objects.filter(
+                data__json_value__field1__gte=5, data__json_value__field1__lte=10
+            ),
+            models[1:3],
+        )
+
     def test_order_and_group_by_embedded_field_annotation(self):
         # Create repeated `data__integer` values.
         [Holder.objects.create(data=Data(integer=x)) for x in range(6)]

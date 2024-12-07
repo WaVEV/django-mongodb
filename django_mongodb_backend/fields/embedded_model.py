@@ -181,18 +181,38 @@ class KeyTransform(Transform):
         return result
 
     def preprocess_lhs(self, compiler, connection):
-        key_transforms = [self.key_name]
-        previous = self.lhs
+        previous = self
+        embedded_key_transforms = []
+        json_key_transforms = []
         while isinstance(previous, KeyTransform):
-            key_transforms.insert(0, previous.key_name)
+            if isinstance(previous.ref_field, EmbeddedModelField):
+                embedded_key_transforms.insert(0, previous.key_name)
+            else:
+                json_key_transforms.insert(0, previous.key_name)
             previous = previous.lhs
         mql = previous.as_mql(compiler, connection)
-        return mql, key_transforms
+        embedded_key_transforms.append(json_key_transforms.pop(0))
+        return mql, embedded_key_transforms, json_key_transforms
 
     def as_mql(self, compiler, connection):
-        mql, key_transforms = self.preprocess_lhs(compiler, connection)
+        mql, key_transforms, json_key_transforms = self.preprocess_lhs(compiler, connection)
         transforms = ".".join(key_transforms)
-        return f"{mql}.{transforms}"
+        result = f"{mql}.{transforms}"
+        for key in json_key_transforms:
+            get_field = {"$getField": {"input": result, "field": key}}
+            # Handle array indexing if the key is a digit. If key is something
+            # like '001', it's not an array index despite isdigit() returning True.
+            if key.isdigit() and str(int(key)) == key:
+                result = {
+                    "$cond": {
+                        "if": {"$isArray": result},
+                        "then": {"$arrayElemAt": [result, int(key)]},
+                        "else": get_field,
+                    }
+                }
+            else:
+                result = get_field
+        return result
 
 
 class KeyTransformFactory:
