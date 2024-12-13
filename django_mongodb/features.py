@@ -96,8 +96,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         "model_fields_.test_arrayfield.TestQuerying.test_index_chained",
         "model_fields_.test_arrayfield.TestQuerying.test_index_nested",
         "model_fields_.test_arrayfield.TestQuerying.test_order_by_slice",
-        "model_fields_.test_arrayfield.TestQuerying.test_slice",
-        "model_fields_.test_arrayfield.TestQuerying.test_slice_annotation",
         # None is $in None
         "model_fields_.test_arrayfield.TestQuerying.test_in_as_F_object",
     }
