@@ -151,11 +151,11 @@ class KeyTransform(Transform):
             new_field = opts.get_field(name)
             result = KeyTransformFactory(name, new_field)
         else:
-            if self.ref_field is not None and self.ref_field.get_transform(name) is None:
+            if self.ref_field.get_transform(name) is None:
                 raise FieldDoesNotExist(
                     f"{self.ref_field.model._meta.object_name} has no field named '{name}'"
                 )
-            result = KeyTransformFactory(name, None)
+            result = KeyTransformFactory(name, self.ref_field)
         return result
 
     def preprocess_lhs(self, compiler, connection):
@@ -163,12 +163,13 @@ class KeyTransform(Transform):
         embedded_key_transforms = []
         json_key_transforms = []
         while isinstance(previous, KeyTransform):
-            if previous.ref_field is not None:
+            if isinstance(previous.ref_field, EmbeddedModelField):
                 embedded_key_transforms.insert(0, previous.key_name)
             else:
                 json_key_transforms.insert(0, previous.key_name)
             previous = previous.lhs
         mql = previous.as_mql(compiler, connection)
+        embedded_key_transforms.append(json_key_transforms.pop(0))
         return mql, embedded_key_transforms, json_key_transforms
 
 

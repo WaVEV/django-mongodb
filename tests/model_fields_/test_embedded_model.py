@@ -179,7 +179,6 @@ class QueryingTests(TestCase):
     def _truncate_ms(time):
         return time - timedelta(microseconds=time.microsecond)
 
-    ################
     def test_ordering_by_embedded_field(self):
         query = (
             EmbeddedModelFieldModel.objects.filter(simple__someint__gt=3)
