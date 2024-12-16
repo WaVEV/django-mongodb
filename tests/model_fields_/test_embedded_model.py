@@ -1,7 +1,9 @@
+import operator
+from datetime import timedelta
 from decimal import Decimal
 
 from django.core.exceptions import FieldDoesNotExist, ValidationError
-
+from django.db.models import ExpressionWrapper, F, IntegerField, Max, Model, Sum
 from django.test import SimpleTestCase, TestCase
 
 from django_mongodb.fields import EmbeddedModelField
@@ -182,3 +184,48 @@ class QueryingTests(TestCase):
             ),
             models[1:3],
         )
+
+    @staticmethod
+    def _truncate_ms(time):
+        return time - timedelta(microseconds=time.microsecond)
+
+    ################
+    def test_ordering_by_embedded_field(self):
+        query = (
+            EmbeddedModelFieldModel.objects.filter(simple__someint__gt=3)
+            .order_by("-simple__someint")
+            .values("pk")
+        )
+        expected = [{"pk": e.pk} for e in list(reversed(self.objs[4:]))]
+        self.assertSequenceEqual(query, expected)
+
+    def test_ordering_grouping_by_embedded_field(self):
+        query = (
+            EmbeddedModelFieldModel.objects.annotate(
+                group=ExpressionWrapper(F("simple__someint") + 5, output_field=IntegerField())
+            )
+            .values("group")
+            .annotate(max_pk=Max("simple__auto_now"))
+            .order_by("simple__someint")
+        )
+        query = [{**e, "max_pk": self._truncate_ms(e["max_pk"])} for e in query]
+        expected = [
+            EmbeddedModelFieldModel.objects.create(simple=EmbeddedModel(someint=x))
+            for x in range(6)
+        ]
+        self.assertSequenceEqual(
+            query,
+            [
+                {"group": e.simple.someint + 5, "max_pk": self._truncate_ms(e.simple.auto_now)}
+                for e in expected
+            ],
+        )
+
+    def test_ordering_grouping_by_sum(self):
+        [EmbeddedModelFieldModel.objects.create(simple=EmbeddedModel(someint=x)) for x in range(6)]
+        qs = (
+            EmbeddedModelFieldModel.objects.values("simple__someint")
+            .annotate(sum=Sum("simple__someint"))
+            .order_by("sum")
+        )
+        self.assertQuerySetEqual(qs, [0, 2, 4, 6, 8, 10], operator.itemgetter("sum"))
