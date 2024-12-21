@@ -395,20 +395,10 @@ class SQLCompiler(compiler.SQLCompiler):
         return query
 
     def get_columns(self):
-        """
-        Return a tuple of (name, expression) with the columns and annotations
-        which should be loaded by the query.
-        """
         select_mask = self.query.get_select_mask()
         columns = (
             self.get_default_columns(select_mask) if self.query.default_cols else self.query.select
         )
-        # Populate QuerySet.select_related() data.
-        related_columns = []
-        if self.query.select_related:
-            self.get_related_selections(related_columns, select_mask)
-            if related_columns:
-                related_columns, _ = zip(*related_columns, strict=True)
 
         annotation_idx = 1
 
@@ -427,11 +417,30 @@ class SQLCompiler(compiler.SQLCompiler):
                 annotation_idx += 1
             return target, column
 
-        return (
-            tuple(map(project_field, columns))
-            + tuple(self.annotations.items())
-            + tuple(map(project_field, related_columns))
-        )
+        selected = []
+        if self.query.selected is None:
+            selected = [
+                *(project_field(col) for col in columns),
+                *self.annotations.items(),
+            ]
+        else:
+            for _, expression in self.query.selected.items():
+                # Reference to an annotation.
+                if isinstance(expression, str):
+                    expression = self.annotations[expression]
+                # Reference to a column.
+                elif isinstance(expression, int):
+                    expression = columns[expression]
+                selected.append(project_field(expression))
+
+        # Populate QuerySet.select_related() data.
+        related_columns = []
+        if self.query.select_related:
+            self.get_related_selections(related_columns, select_mask)
+            if related_columns:
+                related_columns, _ = zip(*related_columns, strict=True)
+
+        return tuple(selected) + tuple(map(project_field, related_columns))
 
     @cached_property
     def base_table(self):
@@ -479,7 +488,11 @@ class SQLCompiler(compiler.SQLCompiler):
                 # If the columns list is limited, then all combined queries
                 # must have the same columns list. Set the selects defined on
                 # the query on all combined queries, if not already set.
-                if not compiler_.query.values_select and self.query.values_select:
+                selected = self.query.selected
+                if selected is not None and compiler_.query.selected is None:
+                    compiler_.query = compiler_.query.clone()
+                    compiler_.query.set_values(selected)
+                elif not compiler_.query.values_select and self.query.values_select:
                     compiler_.query = compiler_.query.clone()
                     compiler_.query.set_values(
                         (
