@@ -15,6 +15,9 @@ class EmbeddedModelField(models.Field):
         stored. Like other relational fields, it may also be passed as a
         string.
         """
+        if not isinstance(embedded_model, str):
+            self._validate_embedded_field(self, embedded_model)
+
         self.embedded_model = embedded_model
         super().__init__(*args, **kwargs)
 
@@ -27,6 +30,14 @@ class EmbeddedModelField(models.Field):
 
     def get_internal_type(self):
         return "EmbeddedModelField"
+
+    @staticmethod
+    def _validate_embedded_field(_, model):
+        for field in model._meta.local_fields:
+            if isinstance(field, models.ForeignKey | models.OneToOneField):
+                raise TypeError(
+                    f"Field of type {type(field)!r} is not supported within an EmbeddedModelField."
+                )
 
     def _set_model(self, model):
         """
@@ -48,6 +59,7 @@ class EmbeddedModelField(models.Field):
                 self.embedded_model = resolved_model
 
             lazy_related_operation(_resolve_lookup, model, self.embedded_model)
+            lazy_related_operation(self._validate_embedded_field, model, self.embedded_model)
 
     model = property(lambda self: self._model, _set_model)
 
@@ -139,7 +151,7 @@ class EmbeddedModelField(models.Field):
 
 
 class KeyTransform(Transform):
-    def __init__(self, key_name, ref_field=None, *args, **kwargs):
+    def __init__(self, key_name, ref_field, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.key_name = str(key_name)
         self.ref_field = ref_field
@@ -195,7 +207,7 @@ def key_transform(self, compiler, connection):
 
 
 class KeyTransformFactory:
-    def __init__(self, key_name, ref_field=None):
+    def __init__(self, key_name, ref_field):
         self.key_name = key_name
         self.ref_field = ref_field
 

@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.core.exceptions import FieldDoesNotExist, ValidationError
+
 from django.test import SimpleTestCase, TestCase
 
 from django_mongodb.fields import EmbeddedModelField
@@ -10,6 +11,7 @@ from .models import (
     Author,
     Book,
     DecimalKey,
+    DecimalParent,
     EmbeddedModel,
     EmbeddedModelFieldModel,
 )
@@ -80,9 +82,18 @@ class ModelTests(TestCase):
         self.assertEqual(obj.simple.auto_now_add, auto_now_add)
         self.assertGreater(obj.simple.auto_now, auto_now_two)
 
+    def test_foreign_key_in_embedded_object(self):
+        msg = (
+            "Field of type <class 'django.db.models.fields.related.ForeignKey'> "
+            "is not supported within an EmbeddedModelField."
+        )
+        with self.assertRaisesMessage(TypeError, msg):
+
+            class EmbeddedModelTest(Model):
+                decimal = EmbeddedModelField(DecimalParent, null=True, blank=True)
+
     def test_embedded_field_with_foreign_conversion(self):
         decimal = DecimalKey.objects.create(decimal=Decimal("1.5"))
-        # decimal_parent = DecimalParent.objects.create(child=decimal)
         EmbeddedModelFieldModel.objects.create(decimal_parent=decimal)
 
 
