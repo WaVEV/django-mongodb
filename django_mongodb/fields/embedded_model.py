@@ -165,7 +165,8 @@ class KeyTransform(Transform):
         else:
             if self.ref_field.get_transform(name) is None:
                 raise FieldDoesNotExist(
-                    f"{self.ref_field.model._meta.object_name} has no field named '{name}'"
+                    f"{self.ref_field.model._meta.object_name}.{self.ref_field.name}"
+                    f" has no field named '{name}'"
                 )
             result = KeyTransformFactory(name, self.ref_field)
         return result

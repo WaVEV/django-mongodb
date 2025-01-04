@@ -149,7 +149,7 @@ class QueryingTests(TestCase):
         self.assertCountEqual(Book.objects.filter(author__address__city="NYC"), [obj])
 
     def test_nested_not_exists(self):
-        msg = "Address has no field named 'president'"
+        msg = "Address.city has no field named 'president'"
         with self.assertRaisesMessage(FieldDoesNotExist, msg):
             Book.objects.filter(author__address__city__president="NYC")
 
