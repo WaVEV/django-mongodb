@@ -244,7 +244,7 @@ class QueryingTests(TestCase):
         self.assertQuerySetEqual(qs, [0, 2, 4, 6, 8, 10], operator.itemgetter("sum"))
 
 
-class SubqueryExistsTestCase(TestCase):
+class SubqueryExistsTest(TestCase):
     def setUp(self):
         # Create test data
         address1 = Address.objects.create(city="New York", state="NY", zip_code=10001)
