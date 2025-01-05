@@ -97,6 +97,13 @@ Stores an :class:`~bson.objectid.ObjectId`.
     This field handles arrays by reproducing the underlying field a fixed
     number of times.
 
+    The template for this widget is located in
+    ``django_mongodb/templates/mongodb/widgets``. Don't forget to configure
+    template loading appropriately, for example, by using a
+    :class:`~django.template.backends.django.DjangoTemplates` engine with
+    :setting:`APP_DIRS=True <TEMPLATES-APP_DIRS>` and ``"django_mongodb"`` in
+    :setting:`INSTALLED_APPS`.
+
     .. attribute:: base_field
 
         This is a required argument. It specifies the form field to be

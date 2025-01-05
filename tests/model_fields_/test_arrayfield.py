@@ -81,6 +81,34 @@ class BasicTests(SimpleTestCase):
                 instance = MyModel(field=value)
                 self.assertEqual(instance.get_field_display(), display)
 
+    def test_deconstruct(self):
+        field = ArrayField(models.IntegerField())
+        name, path, args, kwargs = field.deconstruct()
+        new = ArrayField(*args, **kwargs)
+        self.assertEqual(type(new.base_field), type(field.base_field))
+        self.assertIsNot(new.base_field, field.base_field)
+
+    def test_deconstruct_with_size(self):
+        field = ArrayField(models.IntegerField(), size=3)
+        name, path, args, kwargs = field.deconstruct()
+        new = ArrayField(*args, **kwargs)
+        self.assertEqual(new.size, field.size)
+
+    def test_deconstruct_args(self):
+        field = ArrayField(models.CharField(max_length=20))
+        name, path, args, kwargs = field.deconstruct()
+        new = ArrayField(*args, **kwargs)
+        self.assertEqual(new.base_field.max_length, field.base_field.max_length)
+
+    def test_subclass_deconstruct(self):
+        field = ArrayField(models.IntegerField())
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(path, "django_mongodb.fields.ArrayField")
+
+        field = ArrayFieldSubclass()
+        name, path, args, kwargs = field.deconstruct()
+        self.assertEqual(path, "model_fields_.models.ArrayFieldSubclass")
+
 
 class SaveLoadTests(TestCase):
     def test_integer(self):
@@ -613,36 +641,9 @@ class CheckTests(SimpleTestCase):
         self.assertEqual(MyModel._meta.get_field("field").check(), [])
 
 
+@isolate_apps("model_fields_")
 class MigrationsTests(TransactionTestCase):
     available_apps = ["model_fields_"]
-
-    def test_deconstruct(self):
-        field = ArrayField(models.IntegerField())
-        name, path, args, kwargs = field.deconstruct()
-        new = ArrayField(*args, **kwargs)
-        self.assertEqual(type(new.base_field), type(field.base_field))
-        self.assertIsNot(new.base_field, field.base_field)
-
-    def test_deconstruct_with_size(self):
-        field = ArrayField(models.IntegerField(), size=3)
-        name, path, args, kwargs = field.deconstruct()
-        new = ArrayField(*args, **kwargs)
-        self.assertEqual(new.size, field.size)
-
-    def test_deconstruct_args(self):
-        field = ArrayField(models.CharField(max_length=20))
-        name, path, args, kwargs = field.deconstruct()
-        new = ArrayField(*args, **kwargs)
-        self.assertEqual(new.base_field.max_length, field.base_field.max_length)
-
-    def test_subclass_deconstruct(self):
-        field = ArrayField(models.IntegerField())
-        name, path, args, kwargs = field.deconstruct()
-        self.assertEqual(path, "django_mongodb.fields.ArrayField")
-
-        field = ArrayFieldSubclass()
-        name, path, args, kwargs = field.deconstruct()
-        self.assertEqual(path, "model_fields_.models.ArrayFieldSubclass")
 
     @override_settings(
         MIGRATION_MODULES={
@@ -650,16 +651,31 @@ class MigrationsTests(TransactionTestCase):
         }
     )
     def test_adding_field_with_default(self):
-        # See #22962
+        class IntegerArrayDefaultModel(models.Model):
+            field = ArrayField(models.IntegerField(), size=None)
+
         table_name = "model_fields__integerarraydefaultmodel"
-        with connection.cursor() as cursor:
-            self.assertNotIn(table_name, connection.introspection.table_names(cursor))
-        call_command("migrate", "model_fields_", verbosity=0)
-        with connection.cursor() as cursor:
-            self.assertIn(table_name, connection.introspection.table_names(cursor))
+        self.assertNotIn(table_name, connection.introspection.table_names(None))
+        # Create collection
+        call_command("migrate", "model_fields_", "0001", verbosity=0)
+        self.assertIn(table_name, connection.introspection.table_names(None))
+        obj = IntegerArrayDefaultModel.objects.create(field=[1, 2, 3])
+        # Add `field2 to IntegerArrayDefaultModel.
+        call_command("migrate", "model_fields_", "0002", verbosity=0)
+
+        class UpdatedIntegerArrayDefaultModel(models.Model):
+            field = ArrayField(models.IntegerField(), size=None)
+            field_2 = ArrayField(models.IntegerField(), default=[], size=None)
+
+            class Meta:
+                db_table = "model_fields__integerarraydefaultmodel"
+
+        obj = UpdatedIntegerArrayDefaultModel.objects.get()
+        # The default is populated on existing documents.
+        self.assertEqual(obj.field_2, [])
+        # Cleanup.
         call_command("migrate", "model_fields_", "zero", verbosity=0)
-        with connection.cursor() as cursor:
-            self.assertNotIn(table_name, connection.introspection.table_names(cursor))
+        self.assertNotIn(table_name, connection.introspection.table_names(None))
 
     @override_settings(
         MIGRATION_MODULES={
@@ -669,7 +685,7 @@ class MigrationsTests(TransactionTestCase):
     def test_adding_arrayfield_with_index(self):
         table_name = "model_fields__chartextarrayindexmodel"
         call_command("migrate", "model_fields_", verbosity=0)
-        # All fields should have regular indexes.
+        # All fields should have indexes.
         indexes = [
             c["columns"][0]
             for c in connection.introspection.get_constraints(None, table_name).values()
@@ -779,11 +795,7 @@ class AdminUtilsTests(SimpleTestCase):
 
     def test_array_display_for_field(self):
         array_field = ArrayField(models.IntegerField())
-        display_value = display_for_field(
-            [1, 2],
-            array_field,
-            self.empty_value,
-        )
+        display_value = display_for_field([1, 2], array_field, self.empty_value)
         self.assertEqual(display_value, "1, 2")
 
     def test_array_with_choices_display_for_field(self):
@@ -794,17 +806,7 @@ class AdminUtilsTests(SimpleTestCase):
                 ([1, 2], "2nd choice"),
             ],
         )
-
-        display_value = display_for_field(
-            [1, 2],
-            array_field,
-            self.empty_value,
-        )
+        display_value = display_for_field([1, 2], array_field, self.empty_value)
         self.assertEqual(display_value, "2nd choice")
-
-        display_value = display_for_field(
-            [99, 99],
-            array_field,
-            self.empty_value,
-        )
+        display_value = display_for_field([99, 99], array_field, self.empty_value)
         self.assertEqual(display_value, self.empty_value)
