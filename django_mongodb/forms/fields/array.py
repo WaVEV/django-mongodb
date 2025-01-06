@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
 
 from django_mongodb.validators import ArrayMaxLengthValidator, ArrayMinLengthValidator
 
-from ..utils import prefix_validation_error
+from ...utils import prefix_validation_error
 
 
 class SimpleArrayField(forms.CharField):
