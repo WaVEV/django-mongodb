@@ -260,7 +260,13 @@ class ArrayContainedBy(ArrayRHSMixin, FieldGetDbPrepValueMixin, Lookup):
     def as_mql(self, compiler, connection):
         lhs_mql = process_lhs(self, compiler, connection)
         value = process_rhs(self, compiler, connection)
-        return {"$and": [{"$ne": [lhs_mql, None]}, {"$setIsSubset": [lhs_mql, value]}]}
+        return {
+            "$and": [
+                {"$ne": [lhs_mql, None]},
+                {"$ne": [value, None]},
+                {"$setIsSubset": [lhs_mql, value]},
+            ]
+        }
 
 
 @ArrayField.register_lookup

@@ -369,6 +369,80 @@ class QueryingTests(TestCase):
             self.objs[1:3],
         )
 
+    def test_contained_by_subquery(self):
+        IntegerArrayModel.objects.create(field=[2, 3])
+        inner_qs = IntegerArrayModel.objects.values_list("field", flat=True)
+        self.assertSequenceEqual(
+            NullableIntegerArrayModel.objects.filter(field__contained_by=inner_qs[:1]),
+            self.objs[1:3],
+        )
+        IntegerArrayModel.objects.create(field=[2])
+        inner_qs = IntegerArrayModel.objects.filter(field__contained_by=OuterRef("field"))
+        # fails with  "both operands of $setIsSubset must be arrays. Second
+        # argument is of type: null"
+        self.assertSequenceEqual(
+            NullableIntegerArrayModel.objects.filter(Exists(inner_qs)),
+            self.objs[1:3],
+        )
+
+    # [
+    #    {
+    #        "$lookup": {
+    #            "as": "__subquery0",
+    #            "from": "model_fields__integerarraymodel",
+    #            "let": {"parent__field__0": "$field"},
+    #            "pipeline": [
+    #                {
+    #                    "$match": {
+    #                        "$expr": {
+    #                            "$and": [
+    #                                {"$ne": ["$field", None]},
+    #                                {"$ne": ["$$parent__field__0", None]},
+    #                                {"$setIsSubset": ["$field", "$$parent__field__0"]},
+    #                            ]
+    #                        }
+    #                    }
+    #                },
+    #                {"$project": {"a": {"$literal": 1}}},
+    #                {"$limit": 1},
+    #            ],
+    #        }
+    #    },
+    #    {
+    #        "$set": {
+    #            "__subquery0": {
+    #                "$cond": {
+    #                    "if": {
+    #                        "$or": [
+    #                            {"$eq": [{"$type": "$__subquery0"}, "missing"]},
+    #                            {"$eq": [{"$size": "$__subquery0"}, 0]},
+    #                        ]
+    #                    },
+    #                    "then": {},
+    #                    "else": {"$arrayElemAt": ["$__subquery0", 0]},
+    #                }
+    #            }
+    #        }
+    #    },
+    #    {
+    #        "$match": {
+    #            "$expr": {
+    #                "$eq": [
+    #                    {
+    #                        "$not": {
+    #                            "$or": [
+    #                                {"$eq": [{"$type": "$__subquery0.a"}, "missing"]},
+    #                                {"$eq": ["$__subquery0.a", None]},
+    #                            ]
+    #                        }
+    #                    },
+    #                    True,
+    #                ]
+    #            }
+    #        }
+    #    },
+    # ]
+
     def test_contains_including_expression(self):
         self.assertSequenceEqual(
             NullableIntegerArrayModel.objects.filter(
