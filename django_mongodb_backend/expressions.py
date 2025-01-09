@@ -120,6 +120,8 @@ def query(self, compiler, connection, get_wrapping_pipeline=None):
         },
     }
     if get_wrapping_pipeline:
+        # The results from some lookups must be converted to a list of values.
+        # The output is compressed with an aggregation pipeline.
         wrapping_result_pipeline = get_wrapping_pipeline(
             subquery_compiler, connection, field_name, expr
         )

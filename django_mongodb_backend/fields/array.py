@@ -279,8 +279,6 @@ class ArrayOverlap(ArrayRHSMixin, FieldGetDbPrepValueMixin, Lookup):
     lookup_name = "overlap"
 
     def get_subquery_wrapping_pipeline(self, compiler, connection, field_name, expr):
-        # The result must be a list of values.
-        # The output is compressed with an aggregation pipeline.
         return [
             {
                 "$facet": {

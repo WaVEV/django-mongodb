@@ -46,8 +46,6 @@ def in_(self, compiler, connection):
 
 
 def get_subquery_wrapping_pipeline(self, compiler, connection, field_name, expr):  # noqa: ARG001
-    # The result must be a list of values.
-    # The output is compressed with an aggregation pipeline.
     return [
         {
             "$facet": {
