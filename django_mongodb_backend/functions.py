@@ -1,5 +1,6 @@
 from django.db import NotSupportedError
 from django.db.models.expressions import Func
+from django.db.models.functions import JSONArray
 from django.db.models.functions.comparison import Cast, Coalesce, Greatest, Least, NullIf
 from django.db.models.functions.datetime import (
     Extract,
@@ -104,6 +105,10 @@ def func(self, compiler, connection):
     lhs_mql = process_lhs(self, compiler, connection)
     operator = MONGO_OPERATORS.get(self.__class__, self.function.lower())
     return {f"${operator}": lhs_mql}
+
+
+def json_array(self, compiler, connection, **extra_context):  # noqa: ARG001
+    return process_lhs(self, compiler, connection)
 
 
 def left(self, compiler, connection):
@@ -238,6 +243,7 @@ def register_functions():
     Cot.as_mql = cot
     Extract.as_mql = extract
     Func.as_mql = func
+    JSONArray.as_mql = json_array
     Left.as_mql = left
     Length.as_mql = length
     Log.as_mql = log
