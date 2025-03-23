@@ -8,12 +8,13 @@ Some MongoDB-specific fields are available in ``django_mongodb_backend.fields``.
 ``ArrayField``
 --------------
 
-.. class:: ArrayField(base_field, max_size=None, **options)
+.. class:: ArrayField(base_field, max_size=None, size=None, **options)
 
     A field for storing lists of data. Most field types can be used, and you
     pass another field instance as the :attr:`base_field
     <ArrayField.base_field>`. You may also specify a :attr:`max_size
-    <ArrayField.max_size>`. ``ArrayField`` can be nested to store
+    <ArrayField.max_size>` and :attr:`size
+    <ArrayField.size>`. ``ArrayField`` can be nested to store
     multi-dimensional arrays.
 
     If you give the field a :attr:`~django.db.models.Field.default`, ensure
@@ -50,9 +51,13 @@ Some MongoDB-specific fields are available in ``django_mongodb_backend.fields``.
                 board = ArrayField(
                     ArrayField(
                         models.CharField(max_length=10, blank=True),
-                        max_size=8,
+                        size=8,
                     ),
-                    max_size=8,
+                    size=8,
+                )
+                active_pieces = ArrayField(
+                    models.CharField(max_length=10, blank=True),
+                    max_size=32
                 )
 
         Transformation of values between the database and the model, validation
@@ -65,6 +70,18 @@ Some MongoDB-specific fields are available in ``django_mongodb_backend.fields``.
 
         If passed, the array will have a maximum size as specified, validated
         by forms and model validation, but not enforced by the database.
+
+    .. attribute:: size
+
+        This is an optional argument.
+
+        If passed, the array will have size as specified, validated
+        only by forms.
+
+        .. note::
+
+            Defining both ``size`` and ``max_size`` will raise an exception.
+            Use ``size`` for fixed-length arrays and ``max_size`` for variable-length arrays with an upper limit.
 
 Querying ``ArrayField``
 ~~~~~~~~~~~~~~~~~~~~~~~
