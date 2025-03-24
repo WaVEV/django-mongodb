@@ -764,7 +764,9 @@ class MigrationsTests(TransactionTestCase):
         ]
         self.assertIn("char", indexes)
         self.assertIn("char2", indexes)
+        self.assertIn("char3", indexes)
         self.assertIn("text", indexes)
+        self.assertIn("paragraph", indexes)
         call_command("migrate", "model_fields_", "zero", verbosity=0)
         self.assertNotIn(table_name, connection.introspection.table_names(None))
 
