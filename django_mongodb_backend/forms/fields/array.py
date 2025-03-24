@@ -6,7 +6,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from ...utils import prefix_validation_error
-from ...validators import ArrayMaxLengthValidator, ArrayMinLengthValidator
+from ...validators import ArrayMaxLengthValidator, ArrayMinLengthValidator, LengthValidator
 
 
 class SimpleArrayField(forms.CharField):
@@ -14,7 +14,9 @@ class SimpleArrayField(forms.CharField):
         "item_invalid": _("Item %(nth)s in the array did not validate:"),
     }
 
-    def __init__(self, base_field, *, delimiter=",", max_length=None, min_length=None, **kwargs):
+    def __init__(
+        self, base_field, *, delimiter=",", max_length=None, min_length=None, size=None, **kwargs
+    ):
         self.base_field = base_field
         self.delimiter = delimiter
         super().__init__(**kwargs)
@@ -24,6 +26,9 @@ class SimpleArrayField(forms.CharField):
         if max_length is not None:
             self.max_length = max_length
             self.validators.append(ArrayMaxLengthValidator(int(max_length)))
+        if size is not None:
+            self.size = size
+            self.validators.append(LengthValidator(int(size)))
 
     def clean(self, value):
         value = super().clean(value)
