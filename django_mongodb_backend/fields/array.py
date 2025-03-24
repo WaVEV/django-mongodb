@@ -1,6 +1,5 @@
 import json
 
-from django.contrib.postgres.validators import ArrayMaxLengthValidator
 from django.core import checks, exceptions
 from django.db.models import DecimalField, Field, Func, IntegerField, Transform, Value
 from django.db.models.fields.mixins import CheckFieldDefaultMixin
@@ -10,7 +9,7 @@ from django.utils.translation import gettext_lazy as _
 from ..forms import SimpleArrayField
 from ..query_utils import process_lhs, process_rhs
 from ..utils import prefix_validation_error
-from .validators import LengthValidator
+from ..validators import ArrayMaxLengthValidator, LengthValidator
 
 __all__ = ["ArrayField"]
 
@@ -42,7 +41,6 @@ class ArrayField(CheckFieldDefaultMixin, Field):
         if self.size:
             self.default_validators = [
                 *self.default_validators,
-                ArrayMaxLengthValidator(self.size),
                 LengthValidator(self.size),
             ]
         # For performance, only add a from_db_value() method if the base field
@@ -223,6 +221,7 @@ class ArrayField(CheckFieldDefaultMixin, Field):
                 "form_class": SimpleArrayField,
                 "base_field": self.base_field.formfield(),
                 "max_length": self.max_size,
+                "size": self.size,
                 **kwargs,
             }
         )
