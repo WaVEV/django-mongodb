@@ -13,7 +13,7 @@ Some MongoDB-specific fields are available in ``django_mongodb_backend.fields``.
     A field for storing lists of data. Most field types can be used, and you
     pass another field instance as the :attr:`base_field
     <ArrayField.base_field>`. You may also specify a :attr:`max_size
-    <ArrayField.max_size>` and :attr:`size
+    <ArrayField.max_size>` or :attr:`size
     <ArrayField.size>`. ``ArrayField`` can be nested to store
     multi-dimensional arrays.
 
