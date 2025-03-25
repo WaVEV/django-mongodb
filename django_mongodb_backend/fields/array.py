@@ -31,8 +31,6 @@ class ArrayField(CheckFieldDefaultMixin, Field):
         self.base_field = base_field
         self.max_size = max_size
         self.size = size
-        if size and max_size:
-            raise ValueError("Cannot define both, size and max_size")
         if self.max_size:
             self.default_validators = [
                 *self.default_validators,
@@ -106,6 +104,14 @@ class ArrayField(CheckFieldDefaultMixin, Field):
                             id="django_mongodb_backend.array.W004",
                         )
                     )
+        if self.size and self.max_size:
+            errors.append(
+                checks.Error(
+                    "ArrayField cannot specify both size and max_size.",
+                    obj=self,
+                    id="django_mongodb_backend.array.E003",
+                )
+            )
         return errors
 
     def set_attributes_from_name(self, name):
