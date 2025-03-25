@@ -30,13 +30,6 @@ class Migration(migrations.Migration):
                     "text",
                     django_mongodb_backend.fields.ArrayField(models.TextField(), db_index=True),
                 ),
-                ("char3", models.CharField(max_length=11, db_index=True)),
-                (
-                    "paragraph",
-                    django_mongodb_backend.fields.ArrayField(
-                        models.TextField(), size=10, db_index=True
-                    ),
-                ),
             ],
             options={},
             bases=(models.Model,),

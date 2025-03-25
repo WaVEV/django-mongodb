@@ -115,6 +115,30 @@ class SimpleArrayFieldTests(SimpleTestCase):
         with self.assertRaisesMessage(exceptions.ValidationError, msg):
             field.clean([1])
 
+    def test_size_length(self):
+        field = SimpleArrayField(forms.CharField(max_length=27), size=4)
+        with self.assertRaises(exceptions.ValidationError) as cm:
+            field.clean(["a", "b", "c"])
+        self.assertEqual(
+            cm.exception.messages[0],
+            "List contains 3 items, it should contain 4.",
+        )
+        with self.assertRaises(exceptions.ValidationError) as cm:
+            field.clean(["a", "b", "c", "d", "e"])
+        self.assertEqual(
+            cm.exception.messages[0],
+            "List contains 5 items, it should contain 4.",
+        )
+
+    def test_size_length_singular(self):
+        field = SimpleArrayField(forms.CharField(max_length=27), size=4)
+        with self.assertRaises(exceptions.ValidationError) as cm:
+            field.clean(["a"])
+        self.assertEqual(
+            cm.exception.messages[0],
+            "List contains 1 item, it should contain 4.",
+        )
+
     def test_required(self):
         field = SimpleArrayField(forms.CharField(), required=True)
         with self.assertRaises(exceptions.ValidationError) as cm:
