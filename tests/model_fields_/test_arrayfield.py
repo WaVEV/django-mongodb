@@ -646,7 +646,7 @@ class CheckTests(SimpleTestCase):
         self.assertEqual(len(errors), 1)
         self.assertEqual(errors[0].id, "django_mongodb_backend.array.E002")
 
-    def test_invalid_parameters(self):
+    def test_both_size_and_max_size(self):
         class MyModel(models.Model):
             field = ArrayField(models.CharField(max_length=3), size=3, max_size=4)
 
