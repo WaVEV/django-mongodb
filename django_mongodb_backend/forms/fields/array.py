@@ -2,7 +2,7 @@ import copy
 from itertools import chain
 
 from django import forms
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from ...utils import prefix_validation_error
@@ -20,6 +20,11 @@ class SimpleArrayField(forms.CharField):
         self.base_field = base_field
         self.delimiter = delimiter
         super().__init__(**kwargs)
+        if (min_length is not None or max_length is not None) and size is not None:
+            raise ImproperlyConfigured(
+                "SimpleArrayField param 'size' cannot be "
+                "specified with 'max_length' or 'min_length'."
+            )
         if min_length is not None:
             self.min_length = min_length
             self.validators.append(ArrayMinLengthValidator(int(min_length)))
