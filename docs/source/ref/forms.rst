@@ -101,6 +101,15 @@ Stores an :class:`~bson.objectid.ObjectId`.
         This is an optional argument which validates that the array reaches at
         least the stated length.
 
+    .. attribute:: size
+
+        This is an optional argument which validates that the array reaches at
+        exactly the stated length.
+
+        .. note::
+            Defining ``size`` along with ``max_length`` or ``min_length`` will raise an exception.
+            Use ``size`` for fixed-length arrays and ``max_length`` / ``min_length`` for variable-length arrays with an upper or lower limit.
+
     .. admonition:: User friendly forms
 
         ``SimpleArrayField`` is not particularly user friendly in most cases,

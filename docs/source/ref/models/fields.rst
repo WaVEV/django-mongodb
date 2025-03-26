@@ -75,8 +75,7 @@ Some MongoDB-specific fields are available in ``django_mongodb_backend.fields``.
 
         This is an optional argument.
 
-        If passed, the array will have size as specified, validated
-        only by forms.
+        If passed, the array will have size as specified, validated by forms and model validation, but not enforced by the database.
 
         .. note::
 
