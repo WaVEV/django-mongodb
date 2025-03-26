@@ -126,12 +126,10 @@ class ArrayField(CheckFieldDefaultMixin, Field):
         return "array"
 
     def get_db_prep_value(self, value, connection, prepared=False):
-        from ..fields import EmbeddedModelField
-
         if isinstance(value, list | tuple):
-            # DecimalField here is a workaround for
-            #  https://code.djangoproject.com/ticket/35982 (fixed in Django 5.2).
-            if isinstance(self.base_field, (DecimalField | EmbeddedModelField)):
+            # Workaround for https://code.djangoproject.com/ticket/35982
+            # (fixed in Django 5.2).
+            if isinstance(self.base_field, DecimalField):
                 return [self.base_field.get_db_prep_save(i, connection) for i in value]
             return [self.base_field.get_db_prep_value(i, connection, prepared=False) for i in value]
         return value
