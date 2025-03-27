@@ -55,10 +55,6 @@ Some MongoDB-specific fields are available in ``django_mongodb_backend.fields``.
                     ),
                     size=8,
                 )
-                active_pieces = ArrayField(
-                    models.CharField(max_length=10, blank=True),
-                    max_size=32
-                )
 
         Transformation of values between the database and the model, validation
         of data and configuration, and serialization are all delegated to the

@@ -116,7 +116,7 @@ class SimpleArrayFieldTests(SimpleTestCase):
             field.clean([1])
 
     def test_size_length(self):
-        field = SimpleArrayField(forms.CharField(max_length=27), size=4)
+        field = SimpleArrayField(forms.CharField(max_length=27), length=4)
         with self.assertRaises(exceptions.ValidationError) as cm:
             field.clean(["a", "b", "c"])
         self.assertEqual(
@@ -131,7 +131,7 @@ class SimpleArrayFieldTests(SimpleTestCase):
         )
 
     def test_size_length_singular(self):
-        field = SimpleArrayField(forms.CharField(max_length=27), size=4)
+        field = SimpleArrayField(forms.CharField(max_length=27), length=4)
         with self.assertRaises(exceptions.ValidationError) as cm:
             field.clean(["a"])
         self.assertEqual(
@@ -146,12 +146,14 @@ class SimpleArrayFieldTests(SimpleTestCase):
         self.assertEqual(cm.exception.messages[0], "This field is required.")
 
     def test_misconfigured(self):
-        msg = "SimpleArrayField param 'size' cannot be specified with 'max_length' or 'min_length'."
+        msg = (
+            "SimpleArrayField param 'length' cannot be specified with 'max_length' or 'min_length'."
+        )
         with self.assertRaises(exceptions.ImproperlyConfigured) as cm:
-            SimpleArrayField(forms.CharField(), max_length=3, size=2)
+            SimpleArrayField(forms.CharField(), max_length=3, length=2)
         self.assertEqual(cm.exception.args[0], msg)
         with self.assertRaises(exceptions.ImproperlyConfigured) as cm:
-            SimpleArrayField(forms.CharField(), min_length=3, size=2)
+            SimpleArrayField(forms.CharField(), min_length=3, length=2)
         self.assertEqual(cm.exception.args[0], msg)
 
     def test_model_field_formfield(self):
@@ -171,7 +173,7 @@ class SimpleArrayFieldTests(SimpleTestCase):
         model_field = ArrayField(models.CharField(max_length=27), size=4)
         form_field = model_field.formfield()
         self.assertIsInstance(form_field, SimpleArrayField)
-        self.assertEqual(form_field.size, 4)
+        self.assertEqual(form_field.length, 4)
 
     def test_model_field_choices(self):
         model_field = ArrayField(models.IntegerField(choices=((1, "A"), (2, "B"))))

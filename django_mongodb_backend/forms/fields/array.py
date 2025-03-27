@@ -15,14 +15,14 @@ class SimpleArrayField(forms.CharField):
     }
 
     def __init__(
-        self, base_field, *, delimiter=",", max_length=None, min_length=None, size=None, **kwargs
+        self, base_field, *, delimiter=",", max_length=None, min_length=None, length=None, **kwargs
     ):
         self.base_field = base_field
         self.delimiter = delimiter
         super().__init__(**kwargs)
-        if (min_length is not None or max_length is not None) and size is not None:
+        if (min_length is not None or max_length is not None) and length is not None:
             raise ImproperlyConfigured(
-                "SimpleArrayField param 'size' cannot be "
+                "SimpleArrayField param 'length' cannot be "
                 "specified with 'max_length' or 'min_length'."
             )
         if min_length is not None:
@@ -31,9 +31,9 @@ class SimpleArrayField(forms.CharField):
         if max_length is not None:
             self.max_length = max_length
             self.validators.append(ArrayMaxLengthValidator(int(max_length)))
-        if size is not None:
-            self.size = size
-            self.validators.append(LengthValidator(int(size)))
+        if length is not None:
+            self.length = length
+            self.validators.append(LengthValidator(int(length)))
 
     def clean(self, value):
         value = super().clean(value)

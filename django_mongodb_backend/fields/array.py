@@ -227,7 +227,7 @@ class ArrayField(CheckFieldDefaultMixin, Field):
                 "form_class": SimpleArrayField,
                 "base_field": self.base_field.formfield(),
                 "max_length": self.max_size,
-                "size": self.size,
+                "length": self.size,
                 **kwargs,
             }
         )
