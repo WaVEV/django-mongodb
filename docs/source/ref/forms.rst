@@ -93,14 +93,11 @@ Stores an :class:`~bson.objectid.ObjectId`.
 
     .. attribute:: length
 
-        This is an optional argument which validates that the array reaches at
-        exactly the stated length.
+        This is an optional argument which validates that the array contains
+        the stated number of items.
 
-        .. note::
-            Defining ``length`` along with ``max_length`` or ``min_length``
-            will raise an exception. Use ``length`` for fixed-length arrays
-            and ``max_length`` / ``min_length`` for variable-length arrays
-            with an upper or lower limit.
+        ``length`` may not be specified along with ``max_length`` or
+        ``min_length``.
 
     .. attribute:: max_length
 

@@ -21,9 +21,9 @@ class SimpleArrayField(forms.CharField):
         self.delimiter = delimiter
         super().__init__(**kwargs)
         if (min_length is not None or max_length is not None) and length is not None:
+            invalid_param = "max_length" if max_length is not None else "min_length"
             raise ImproperlyConfigured(
-                "SimpleArrayField param 'length' cannot be "
-                "specified with 'max_length' or 'min_length'."
+                f"The length and {invalid_param} parameters are mutually exclusive."
             )
         if min_length is not None:
             self.min_length = min_length

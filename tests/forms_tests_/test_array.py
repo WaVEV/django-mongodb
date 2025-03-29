@@ -117,27 +117,18 @@ class SimpleArrayFieldTests(SimpleTestCase):
 
     def test_size_length(self):
         field = SimpleArrayField(forms.CharField(max_length=27), length=4)
-        with self.assertRaises(exceptions.ValidationError) as cm:
+        msg = "List contains 3 items, it should contain 4."
+        with self.assertRaisesMessage(exceptions.ValidationError, msg):
             field.clean(["a", "b", "c"])
-        self.assertEqual(
-            cm.exception.messages[0],
-            "List contains 3 items, it should contain 4.",
-        )
-        with self.assertRaises(exceptions.ValidationError) as cm:
+        msg = "List contains 5 items, it should contain 4."
+        with self.assertRaisesMessage(exceptions.ValidationError, msg):
             field.clean(["a", "b", "c", "d", "e"])
-        self.assertEqual(
-            cm.exception.messages[0],
-            "List contains 5 items, it should contain 4.",
-        )
 
     def test_size_length_singular(self):
         field = SimpleArrayField(forms.CharField(max_length=27), length=4)
-        with self.assertRaises(exceptions.ValidationError) as cm:
+        msg = "List contains 1 item, it should contain 4."
+        with self.assertRaisesMessage(exceptions.ValidationError, msg):
             field.clean(["a"])
-        self.assertEqual(
-            cm.exception.messages[0],
-            "List contains 1 item, it should contain 4.",
-        )
 
     def test_required(self):
         field = SimpleArrayField(forms.CharField(), required=True)
@@ -145,16 +136,13 @@ class SimpleArrayFieldTests(SimpleTestCase):
             field.clean("")
         self.assertEqual(cm.exception.messages[0], "This field is required.")
 
-    def test_misconfigured(self):
-        msg = (
-            "SimpleArrayField param 'length' cannot be specified with 'max_length' or 'min_length'."
-        )
-        with self.assertRaises(exceptions.ImproperlyConfigured) as cm:
+    def test_length_and_max_min_length(self):
+        msg = "The length and max_length parameters are mutually exclusive."
+        with self.assertRaisesMessage(exceptions.ImproperlyConfigured, msg):
             SimpleArrayField(forms.CharField(), max_length=3, length=2)
-        self.assertEqual(cm.exception.args[0], msg)
-        with self.assertRaises(exceptions.ImproperlyConfigured) as cm:
+        msg = "The length and min_length parameters are mutually exclusive."
+        with self.assertRaisesMessage(exceptions.ImproperlyConfigured, msg):
             SimpleArrayField(forms.CharField(), min_length=3, length=2)
-        self.assertEqual(cm.exception.args[0], msg)
 
     def test_model_field_formfield(self):
         model_field = ArrayField(models.CharField(max_length=27))
