@@ -180,3 +180,28 @@ class Movie(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class ArtifactDetail(EmbeddedModel):
+    """Details about a specific artifact."""
+
+    name = models.CharField(max_length=255)
+    description = models.CharField(max_length=255)
+    metadata = models.JSONField()
+
+
+class ExhibitSection(EmbeddedModel):
+    """A section within an exhibit, containing multiple artifacts."""
+
+    section_number = models.IntegerField()
+    artifacts = EmbeddedModelArrayField(ArtifactDetail, null=True)
+
+
+class MuseumExhibit(models.Model):
+    """An exhibit in the museum, composed of multiple sections."""
+
+    exhibit_name = models.CharField(max_length=255)
+    sections = EmbeddedModelArrayField(ExhibitSection, null=True)
+
+    def __str__(self):
+        return self.exhibit_name
