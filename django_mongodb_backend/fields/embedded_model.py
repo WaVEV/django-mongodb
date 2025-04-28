@@ -269,11 +269,13 @@ class KeyTransform(Transform):
 
     def as_mql(self, compiler, connection):
         mql, key_transforms, json_key_transforms = self.preprocess_lhs(compiler, connection)
-        transforms = ".".join(key_transforms)
-        result = f"{mql}.{transforms}"
+        for key in key_transforms:
+            mql = {"$getField": {"input": mql, "field": key}}
+        # transforms = ".".join(key_transforms)
+        # result = f"{mql}.{transforms}"
         if json_key_transforms:
-            result = build_json_mql_path(result, json_key_transforms)
-        return result
+            mql = build_json_mql_path(mql, json_key_transforms)
+        return mql
 
 
 class KeyTransformFactory:

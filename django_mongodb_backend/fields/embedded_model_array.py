@@ -1,7 +1,8 @@
 from ..forms import EmbeddedModelArrayFormField
+from ..query_utils import process_rhs
 from . import EmbeddedModelField
 from .array import ArrayField
-from .embedded_model import EMFExact
+from .embedded_model import EMFExact, KeyTransformFactory
 
 
 class EmbeddedModelArrayField(ArrayField):
@@ -38,17 +39,29 @@ class EmbeddedModelArrayField(ArrayField):
         )
 
     def get_transform(self, name):
-        # TODO: ...
-        return self.base_field.get_transform(name)
+        # return self.base_field.get_transform(name)
         # Copied from EmbedddedModelField -- customize?
-        #        transform = super().get_transform(name)
-        #        if transform:
-        #            return transform
-        #        field = self.embedded_model._meta.get_field(name)
-        #        return KeyTransformFactory(name, field)
+        if transform := super().get_transform(name):
+            return transform
+        if name.isdigit():
+            return KeyTransformFactory(name, self)
+        field = self.embedded_model._meta.get_field(name)
+        return KeyTransformFactory(name, field)
 
 
 @EmbeddedModelArrayField.register_lookup
 class EMFArrayExact(EMFExact):
-    # TODO
-    pass
+    def as_mql(self, compiler, connection):
+        mql, key_transforms, json_key_transforms = self.lhs.preprocess_lhs(compiler, connection)
+        transforms = ".".join(key_transforms)
+        value = process_rhs(self, compiler, connection)
+        # return {"$anyElementTrue": []}
+        # transforms = build_json_mql_path("$$this", key_transforms)
+        return {
+            "$reduce": {
+                "input": mql,
+                "initialValue": False,
+                "in": {"$or": ["$$value", {"$eq": [f"$$this.{transforms}", value]}]},
+            }
+        }
+        # return super().as_mql(compiler, connection)
