@@ -1,5 +1,5 @@
 import operator
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.core.exceptions import FieldDoesNotExist, ValidationError
 from django.db import models
@@ -17,10 +17,10 @@ from django.test.utils import isolate_apps
 from django_mongodb_backend.fields import EmbeddedModelField
 from django_mongodb_backend.models import EmbeddedModel
 
-
 from .models import (
     A,
     Address,
+    ArtifactDetail,
     Author,
     B,
     Book,
@@ -28,10 +28,13 @@ from .models import (
     D,
     Data,
     E,
+    ExhibitSection,
     Holder,
     Library,
     Movie,
+    MuseumExhibit,
     NestedData,
+    RestorationRecord,
     Review,
 )
 from .utils import truncate_ms
@@ -148,6 +151,89 @@ class EmbeddedArrayQueryingTests(TestCase):
             Review(title="Classic", rating=7),
         ]
         cls.bears = Movie.objects.create(title="Bears", reviews=reviews)
+        cls.egypt = MuseumExhibit.objects.create(
+            exhibit_name="Ancient Egypt",
+            sections=[
+                ExhibitSection(
+                    section_number=1,
+                    artifacts=[
+                        ArtifactDetail(
+                            name="Ptolemaic Crown",
+                            description="Royal headpiece worn by Ptolemy kings.",
+                            metadata={
+                                "material": "gold",
+                                "origin": "Egypt",
+                                "era": "Ptolemaic Period",
+                            },
+                        )
+                    ],
+                )
+            ],
+        )
+        cls.wonders = MuseumExhibit.objects.create(
+            exhibit_name="Wonders of the Ancient World",
+            sections=[
+                ExhibitSection(
+                    section_number=1,
+                    artifacts=[
+                        ArtifactDetail(
+                            name="Statue of Zeus",
+                            description="One of the Seven Wonders, created by Phidias.",
+                            metadata={"location": "Olympia", "height_m": 12},
+                        ),
+                        ArtifactDetail(
+                            name="Hanging Gardens",
+                            description="Legendary gardens of Babylon.",
+                            metadata={"debated_existence": True},
+                        ),
+                    ],
+                ),
+                ExhibitSection(
+                    section_number=2,
+                    artifacts=[
+                        ArtifactDetail(
+                            name="Lighthouse of Alexandria",
+                            description="Guided sailors safely to port.",
+                            metadata={"height_m": 100, "built": "3rd century BC"},
+                        )
+                    ],
+                ),
+            ],
+        )
+        cls.new_descoveries = MuseumExhibit.objects.create(
+            exhibit_name="New Discoveries",
+            sections=[ExhibitSection(section_number=1, artifacts=[])],
+        )
+        cls.lost_empires = MuseumExhibit.objects.create(
+            exhibit_name="Lost Empires",
+            main_section=ExhibitSection(
+                section_number=3,
+                artifacts=[
+                    ArtifactDetail(
+                        name="Bronze Statue",
+                        description="Statue from the Hellenistic period.",
+                        metadata={"origin": "Pergamon", "material": "bronze"},
+                        restorations=[
+                            RestorationRecord(
+                                date=date(1998, 4, 15),
+                                description="Removed oxidized layer.",
+                                restored_by="Restoration Lab A",
+                            ),
+                            RestorationRecord(
+                                date=date(2010, 7, 22),
+                                description="Reinforced the base structure.",
+                                restored_by="Dr. Liu Cheng",
+                            ),
+                        ],
+                        last_restoration=RestorationRecord(
+                            date=date(2010, 7, 22),
+                            description="Reinforced the base structure.",
+                            restored_by="Dr. Liu Cheng",
+                        ),
+                    )
+                ],
+            ),
+        )
 
     def test_filter_with_field(self):
         self.assertCountEqual(
@@ -157,6 +243,75 @@ class EmbeddedArrayQueryingTests(TestCase):
     def test_filter_with_model(self):
         self.assertCountEqual(
             Movie.objects.filter(reviews=Review(title="Horrible", rating=2)),
+            [self.frozen],
+        )
+
+    def test_filter_with_embeddedfield_path(self):
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(sections__0__section_number=1),
+            [self.egypt, self.wonders, self.new_descoveries],
+        )
+
+    def test_filter_with_embeddedfield_array_path(self):
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(
+                main_section__artifacts__restorations__0__restored_by="Restoration Lab A"
+            ),
+            [self.lost_empires],
+        )
+
+    def test_len(self):
+        self.assertCountEqual(MuseumExhibit.objects.filter(sections__len=10), [])
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(sections__len=1), [self.egypt, self.new_descoveries]
+        )
+        # Nested EMF
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(main_section__artifacts__len=1), [self.lost_empires]
+        )
+        self.assertCountEqual(MuseumExhibit.objects.filter(main_section__artifacts__len=2), [])
+        self.assertCountEqual(MuseumExhibit.objects.filter(main_section__artifacts__len=2), [])
+        # Nested Indexed Array
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(sections__0__artifacts__len=2), [self.wonders]
+        )
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(sections__0__artifacts__len=0), [self.new_descoveries]
+        )
+        self.assertCountEqual(
+            MuseumExhibit.objects.filter(sections__1__artifacts__len=1), [self.wonders]
+        )
+
+    def test_overlap_simplefield(self):
+        self.assertSequenceEqual(
+            MuseumExhibit.objects.filter(sections__section_number__overlap=[10]), []
+        )
+        self.assertSequenceEqual(
+            MuseumExhibit.objects.filter(sections__section_number__overlap=[1]),
+            [self.egypt, self.wonders, self.new_descoveries],
+        )
+        self.assertSequenceEqual(
+            MuseumExhibit.objects.filter(sections__section_number__overlap=[2]), [self.wonders]
+        )
+
+    def test_overlap_emf(self):
+        self.assertSequenceEqual(
+            Movie.objects.filter(reviews__overlap=[Review(title="The best", rating=10)]),
+            [self.clouds],
+        )
+
+    def test_overlap_values(self):
+        qs = Movie.objects.filter(title__in=["Clouds", "Frozen"])
+        self.assertCountEqual(
+            Movie.objects.filter(
+                reviews__overlap=qs.values_list("reviews"),
+            ),
+            [self.clouds, self.frozen],
+        )
+        self.assertCountEqual(
+            Movie.objects.filter(
+                reviews__overlap=qs.values("reviews"),
+            ),
             [self.clouds, self.frozen],
         )
 
