@@ -17,17 +17,11 @@ from django.test.utils import isolate_apps
 from django_mongodb_backend.fields import EmbeddedModelField
 from django_mongodb_backend.models import EmbeddedModel
 
-
 from .models import (
-    A,
     Address,
     Author,
-    B,
     Book,
-    C,
-    D,
     Data,
-    E,
     Holder,
     Library,
     Movie,
