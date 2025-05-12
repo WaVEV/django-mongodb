@@ -23,7 +23,6 @@ from .models import (
     Author,
     Book,
     Data,
-    ExhibitMeta,
     ExhibitSection,
     Holder,
     Library,
@@ -202,8 +201,8 @@ class EmbeddedArrayQueryingTests(TestCase):
         )
         cls.lost_empires = MuseumExhibit.objects.create(
             exhibit_name="Lost Empires",
-            meta=ExhibitMeta(
-                curator_name="Dr. Amina Hale",
+            main_section=ExhibitSection(
+                section_number=3,
                 artifacts=[
                     ArtifactDetail(
                         name="Bronze Statue",
