@@ -18,11 +18,16 @@ from django_mongodb_backend.fields import EmbeddedModelField
 from django_mongodb_backend.models import EmbeddedModel
 
 from .models import (
+    A,
     Address,
     ArtifactDetail,
     Author,
+    B,
     Book,
+    C,
+    D,
     Data,
+    E,
     ExhibitSection,
     Holder,
     Library,
