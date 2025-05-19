@@ -4,13 +4,13 @@ from django.core.exceptions import FieldDoesNotExist
 from django.db import models
 from django.db.models import Field
 from django.db.models.expressions import Col
-from django.db.models.lookups import Transform
+from django.db.models.lookups import Lookup, Transform
 
 from .. import forms
 from ..query_utils import process_lhs, process_rhs
 from . import EmbeddedModelField
 from .array import ArrayField
-from .embedded_model import EMFExact
+from .embedded_model import EMFExact, EMFMixin
 
 
 class EmbeddedModelArrayField(ArrayField):
@@ -60,17 +60,8 @@ class EmbeddedModelArrayField(ArrayField):
         return KeyTransformFactory(name, self)
 
 
-class ProcessRHSMixin:
-    def process_rhs(self, compiler, connection):
-        if isinstance(self.lhs, KeyTransform):
-            get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
-        else:
-            get_db_prep_value = self.lhs.output_field.get_db_prep_value
-        return None, [get_db_prep_value(v, connection, prepared=True) for v in self.rhs]
-
-
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayExact(EMFExact, ProcessRHSMixin):
+class EMFArrayExact(EMFExact):
     def as_mql(self, compiler, connection):
         lhs_mql = process_lhs(self, compiler, connection)
         value = process_rhs(self, compiler, connection)
@@ -113,12 +104,29 @@ class EMFArrayExact(EMFExact, ProcessRHSMixin):
 
 
 @EmbeddedModelArrayField.register_lookup
-class ArrayOverlap(EMFExact, ProcessRHSMixin):
+class ArrayOverlap(EMFMixin, Lookup):
     lookup_name = "overlap"
+    get_db_prep_lookup_value_is_iterable = True
+
+    def process_rhs(self, compiler, connection):
+        values = self.rhs
+        if self.get_db_prep_lookup_value_is_iterable:
+            values = [values]
+        # Compute how to serialize each value based on the query target.
+        # If querying a subfield inside the array (i.e., a nested KeyTransform), use the output
+        # field of the subfield. Otherwise, use the base field of the array itself.
+        if isinstance(self.lhs, KeyTransform):
+            get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
+        else:
+            get_db_prep_value = self.lhs.output_field.base_field.get_db_prep_value
+        return None, [get_db_prep_value(v, connection, prepared=True) for v in values]
 
     def as_mql(self, compiler, connection):
         lhs_mql = process_lhs(self, compiler, connection)
         values = process_rhs(self, compiler, connection)
+        # Querying a subfield within the array elements (via nested KeyTransform).
+        # Replicates MongoDB's implicit ANY-match by mapping over the array and applying
+        # `$in` on the subfield.
         if isinstance(self.lhs, KeyTransform):
             lhs_mql, inner_lhs_mql = lhs_mql
             return {
@@ -137,11 +145,12 @@ class ArrayOverlap(EMFExact, ProcessRHSMixin):
             }
         conditions = []
         inner_lhs_mql = "$$item"
+        # Querying full embedded documents in the array.
+        # Builds `$or` conditions and maps them over the array to match any full document.
         for value in values:
-            if isinstance(value, models.Model):
-                value, emf_data = self.model_to_dict(value)
-                # Get conditions for any nested EmbeddedModelFields.
-                conditions.append({"$and": self.get_conditions({inner_lhs_mql: (value, emf_data)})})
+            value, emf_data = self.model_to_dict(value)
+            # Get conditions for any nested EmbeddedModelFields.
+            conditions.append({"$and": self.get_conditions({inner_lhs_mql: (value, emf_data)})})
         return {
             "$anyElementTrue": {
                 "$ifNull": [

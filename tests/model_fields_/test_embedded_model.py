@@ -300,36 +300,20 @@ class EmbeddedArrayQueryingTests(TestCase):
             [self.clouds],
         )
 
-    """
-    def test_overlap_charfield_including_expression(self):
-        obj_1 = CharArrayModel.objects.create(field=["TEXT", "lower text"])
-        obj_2 = CharArrayModel.objects.create(field=["lower text", "TEXT"])
-        CharArrayModel.objects.create(field=["lower text", "text"])
-        self.assertSequenceEqual(
-            CharArrayModel.objects.filter(
-                field__overlap=[
-                    Upper(Value("text")),
-                    "other",
-                ]
-            ),
-            [obj_1, obj_2],
-        )
-
     def test_overlap_values(self):
-        qs = NullableIntegerArrayModel.objects.filter(order__lt=3)
+        qs = Movie.objects.filter(title__in=["Clouds", "Frozen"])
         self.assertCountEqual(
-            NullableIntegerArrayModel.objects.filter(
-                field__overlap=qs.values_list("field"),
+            Movie.objects.filter(
+                reviews__overlap=qs.values_list("reviews"),
             ),
-            self.objs[:3],
+            [self.clouds, self.frozen],
         )
         self.assertCountEqual(
-            NullableIntegerArrayModel.objects.filter(
-                field__overlap=qs.values("field"),
+            Movie.objects.filter(
+                reviews__overlap=qs.values("reviews"),
             ),
-            self.objs[:3],
+            [self.clouds, self.frozen],
         )
-    """
 
 
 class QueryingTests(TestCase):
