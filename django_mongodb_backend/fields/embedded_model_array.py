@@ -1,7 +1,7 @@
 import difflib
 
 from django.core.exceptions import FieldDoesNotExist
-from django.db.models import Field
+from django.db.models import Field, lookups
 from django.db.models.expressions import Col
 from django.db.models.lookups import Lookup, Transform
 
@@ -9,7 +9,6 @@ from .. import forms
 from ..query_utils import process_lhs, process_rhs
 from . import EmbeddedModelField
 from .array import ArrayField
-from .embedded_model import EMFExact, EMFMixin
 
 
 class EmbeddedModelArrayField(ArrayField):
@@ -60,7 +59,7 @@ class EmbeddedModelArrayField(ArrayField):
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayExact(EMFExact):
+class EMFArrayExact(lookups.Exact):
     def as_mql(self, compiler, connection):
         if not isinstance(self.lhs, KeyTransform):
             raise ValueError("error")
@@ -83,7 +82,7 @@ class EMFArrayExact(EMFExact):
 
 
 @EmbeddedModelArrayField.register_lookup
-class ArrayOverlap(EMFMixin, Lookup):
+class ArrayOverlap(Lookup):
     lookup_name = "overlap"
     get_db_prep_lookup_value_is_iterable = True
 
