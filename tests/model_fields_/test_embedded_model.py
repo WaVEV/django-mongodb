@@ -18,16 +18,11 @@ from django_mongodb_backend.fields import EmbeddedModelField
 from django_mongodb_backend.models import EmbeddedModel
 
 from .models import (
-    A,
     Address,
     ArtifactDetail,
     Author,
-    B,
     Book,
-    C,
-    D,
     Data,
-    E,
     ExhibitSection,
     Holder,
     Library,
@@ -240,12 +235,6 @@ class EmbeddedArrayQueryingTests(TestCase):
             Movie.objects.filter(reviews__title="Horrible"), [self.clouds, self.frozen]
         )
 
-    def test_filter_with_model(self):
-        self.assertCountEqual(
-            Movie.objects.filter(reviews=Review(title="Horrible", rating=2)),
-            [self.frozen],
-        )
-
     def test_filter_with_embeddedfield_path(self):
         self.assertCountEqual(
             MuseumExhibit.objects.filter(sections__0__section_number=1),
@@ -292,27 +281,6 @@ class EmbeddedArrayQueryingTests(TestCase):
         )
         self.assertSequenceEqual(
             MuseumExhibit.objects.filter(sections__section_number__overlap=[2]), [self.wonders]
-        )
-
-    def test_overlap_emf(self):
-        self.assertSequenceEqual(
-            Movie.objects.filter(reviews__overlap=[Review(title="The best", rating=10)]),
-            [self.clouds],
-        )
-
-    def test_overlap_values(self):
-        qs = Movie.objects.filter(title__in=["Clouds", "Frozen"])
-        self.assertCountEqual(
-            Movie.objects.filter(
-                reviews__overlap=qs.values_list("reviews"),
-            ),
-            [self.clouds, self.frozen],
-        )
-        self.assertCountEqual(
-            Movie.objects.filter(
-                reviews__overlap=qs.values("reviews"),
-            ),
-            [self.clouds, self.frozen],
         )
 
 

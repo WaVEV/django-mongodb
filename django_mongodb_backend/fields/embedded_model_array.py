@@ -1,7 +1,6 @@
 import difflib
 
 from django.core.exceptions import FieldDoesNotExist
-from django.db import models
 from django.db.models import Field
 from django.db.models.expressions import Col
 from django.db.models.lookups import Lookup, Transform
@@ -63,30 +62,10 @@ class EmbeddedModelArrayField(ArrayField):
 @EmbeddedModelArrayField.register_lookup
 class EMFArrayExact(EMFExact):
     def as_mql(self, compiler, connection):
-        lhs_mql = process_lhs(self, compiler, connection)
+        if not isinstance(self.lhs, KeyTransform):
+            raise ValueError("error")
+        lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
         value = process_rhs(self, compiler, connection)
-        if isinstance(self.lhs, KeyTransform):
-            lhs_mql, inner_lhs_mql = lhs_mql
-        else:
-            inner_lhs_mql = "$$item"
-        if isinstance(value, models.Model):
-            value, emf_data = self.model_to_dict(value)
-            # Get conditions for any nested EmbeddedModelFields.
-            conditions = self.get_conditions({inner_lhs_mql: (value, emf_data)})
-            return {
-                "$anyElementTrue": {
-                    "$ifNull": [
-                        {
-                            "$map": {
-                                "input": lhs_mql,
-                                "as": "item",
-                                "in": {"$and": conditions},
-                            }
-                        },
-                        [],
-                    ]
-                }
-            }
         return {
             "$anyElementTrue": {
                 "$ifNull": [
@@ -122,35 +101,14 @@ class ArrayOverlap(EMFMixin, Lookup):
         return None, [get_db_prep_value(v, connection, prepared=True) for v in values]
 
     def as_mql(self, compiler, connection):
-        lhs_mql = process_lhs(self, compiler, connection)
-        values = process_rhs(self, compiler, connection)
         # Querying a subfield within the array elements (via nested KeyTransform).
         # Replicates MongoDB's implicit ANY-match by mapping over the array and applying
         # `$in` on the subfield.
-        if isinstance(self.lhs, KeyTransform):
-            lhs_mql, inner_lhs_mql = lhs_mql
-            return {
-                "$anyElementTrue": {
-                    "$ifNull": [
-                        {
-                            "$map": {
-                                "input": lhs_mql,
-                                "as": "item",
-                                "in": {"$in": [inner_lhs_mql, values]},
-                            }
-                        },
-                        [],
-                    ]
-                }
-            }
-        conditions = []
-        inner_lhs_mql = "$$item"
-        # Querying full embedded documents in the array.
-        # Builds `$or` conditions and maps them over the array to match any full document.
-        for value in values:
-            value, emf_data = self.model_to_dict(value)
-            # Get conditions for any nested EmbeddedModelFields.
-            conditions.append({"$and": self.get_conditions({inner_lhs_mql: (value, emf_data)})})
+        if not isinstance(self.lhs, KeyTransform):
+            raise ValueError()
+        lhs_mql = process_lhs(self, compiler, connection)
+        values = process_rhs(self, compiler, connection)
+        lhs_mql, inner_lhs_mql = lhs_mql
         return {
             "$anyElementTrue": {
                 "$ifNull": [
@@ -158,7 +116,7 @@ class ArrayOverlap(EMFMixin, Lookup):
                         "$map": {
                             "input": lhs_mql,
                             "as": "item",
-                            "in": {"$or": conditions},
+                            "in": {"$in": [inner_lhs_mql, values]},
                         }
                     },
                     [],
