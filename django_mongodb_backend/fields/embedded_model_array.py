@@ -58,8 +58,25 @@ class EmbeddedModelArrayField(ArrayField):
         return KeyTransformFactory(name, self)
 
 
+class EMFArrayRHSMixin:
+    def process_rhs(self, compiler, connection):
+        values = self.rhs
+        if not self.get_db_prep_lookup_value_is_iterable:
+            values = [values]
+        # Compute how to serialize each value based on the query target.
+        # If querying a subfield inside the array (i.e., a nested KeyTransform), use the output
+        # field of the subfield. Otherwise, use the base field of the array itself.
+        if isinstance(self.lhs, KeyTransform):
+            get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
+        else:
+            get_db_prep_value = self.lhs.output_field.base_field.get_db_prep_value
+        return None, [get_db_prep_value(v, connection, prepared=True) for v in values]
+
+
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayExact(lookups.Exact):
+class EMFArrayExact(EMFArrayRHSMixin, lookups.Exact):
+    get_db_prep_lookup_value_is_iterable = False
+
     def as_mql(self, compiler, connection):
         if not isinstance(self.lhs, KeyTransform):
             raise ValueError("error")
@@ -82,22 +99,9 @@ class EMFArrayExact(lookups.Exact):
 
 
 @EmbeddedModelArrayField.register_lookup
-class ArrayOverlap(Lookup):
+class ArrayOverlap(EMFArrayRHSMixin, Lookup):
     lookup_name = "overlap"
-    get_db_prep_lookup_value_is_iterable = True
-
-    def process_rhs(self, compiler, connection):
-        values = self.rhs
-        if self.get_db_prep_lookup_value_is_iterable:
-            values = [values]
-        # Compute how to serialize each value based on the query target.
-        # If querying a subfield inside the array (i.e., a nested KeyTransform), use the output
-        # field of the subfield. Otherwise, use the base field of the array itself.
-        if isinstance(self.lhs, KeyTransform):
-            get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
-        else:
-            get_db_prep_value = self.lhs.output_field.base_field.get_db_prep_value
-        return None, [get_db_prep_value(v, connection, prepared=True) for v in values]
+    get_db_prep_lookup_value_is_iterable = False
 
     def as_mql(self, compiler, connection):
         # Querying a subfield within the array elements (via nested KeyTransform).
