@@ -122,7 +122,7 @@ class QueryingTests(TestCase):
             exhibit_name="New Discoveries",
             sections=[
                 ExhibitSection(
-                    section_number=1,
+                    section_number=2,
                     artifacts=[
                         ArtifactDetail(
                             name="Lighthouse of Alexandria",
@@ -167,13 +167,13 @@ class QueryingTests(TestCase):
     def test_filter_with_embeddedfield_path(self):
         self.assertCountEqual(
             MuseumExhibit.objects.filter(sections__0__section_number=1),
-            [self.egypt, self.wonders, self.new_descoveries],
+            [self.egypt, self.wonders],
         )
 
     def test_filter_with_embeddedfield_array_path(self):
         self.assertCountEqual(
             MuseumExhibit.objects.filter(
-                main_section__artifacts__restorations__0__restored_by="Restoration Lab A"
+                main_section__artifacts__restorations__0__restored_by="Zacarias"
             ),
             [self.lost_empires],
         )
@@ -190,7 +190,8 @@ class QueryingTests(TestCase):
     def test_len(self):
         self.assertCountEqual(MuseumExhibit.objects.filter(sections__len=10), [])
         self.assertCountEqual(
-            MuseumExhibit.objects.filter(sections__len=1), [self.egypt, self.new_descoveries]
+            MuseumExhibit.objects.filter(sections__len=1),
+            [self.egypt, self.wonders, self.new_descoveries],
         )
         # Nested EMF
         self.assertCountEqual(
@@ -202,12 +203,8 @@ class QueryingTests(TestCase):
         self.assertCountEqual(
             MuseumExhibit.objects.filter(sections__0__artifacts__len=2), [self.wonders]
         )
-        self.assertCountEqual(
-            MuseumExhibit.objects.filter(sections__0__artifacts__len=0), [self.new_descoveries]
-        )
-        self.assertCountEqual(
-            MuseumExhibit.objects.filter(sections__1__artifacts__len=1), [self.wonders]
-        )
+        self.assertCountEqual(MuseumExhibit.objects.filter(sections__0__artifacts__len=0), [])
+        self.assertCountEqual(MuseumExhibit.objects.filter(sections__1__artifacts__len=1), [])
 
     def test_overlap_simplefield(self):
         self.assertSequenceEqual(
@@ -215,10 +212,14 @@ class QueryingTests(TestCase):
         )
         self.assertSequenceEqual(
             MuseumExhibit.objects.filter(sections__section_number__overlap=[1]),
-            [self.egypt, self.wonders, self.new_descoveries],
+            [self.egypt, self.wonders],
         )
         self.assertSequenceEqual(
-            MuseumExhibit.objects.filter(sections__section_number__overlap=[2]), [self.wonders]
+            MuseumExhibit.objects.filter(sections__section_number__overlap=[2]),
+            [self.new_descoveries],
+        )
+        self.assertSequenceEqual(
+            MuseumExhibit.objects.filter(sections__section_number__overlap=[3]), []
         )
 
 
