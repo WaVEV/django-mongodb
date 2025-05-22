@@ -12,6 +12,8 @@ from .array import ArrayField
 
 
 class EmbeddedModelArrayField(ArrayField):
+    ALLOWED_LOOKUPS = {"exact", "len", "overlap"}
+
     def __init__(self, embedded_model, **kwargs):
         if "size" in kwargs:
             raise ValueError("EmbeddedModelArrayField does not support size.")
@@ -56,6 +58,9 @@ class EmbeddedModelArrayField(ArrayField):
         if transform:
             return transform
         return KeyTransformFactory(name, self)
+
+    def get_lookup(self, name):
+        return super().get_lookup(name) if name in self.ALLOWED_LOOKUPS else None
 
 
 class EMFArrayRHSMixin:
