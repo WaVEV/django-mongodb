@@ -1,8 +1,8 @@
 from datetime import date
 
-from django.db import models
+from django.db import connection, models
 from django.test import SimpleTestCase, TestCase
-from django.test.utils import isolate_apps
+from django.test.utils import CaptureQueriesContext, isolate_apps
 
 from django_mongodb_backend.fields import EmbeddedModelArrayField
 from django_mongodb_backend.models import EmbeddedModel
@@ -93,11 +93,8 @@ class QueryingTests(TestCase):
                     artifacts=[
                         ArtifactDetail(
                             name="Ptolemaic Crown",
-                            description="Royal headpiece worn by Ptolemy kings.",
                             metadata={
-                                "material": "gold",
                                 "origin": "Egypt",
-                                "era": "Ptolemaic Period",
                             },
                         )
                     ],
@@ -112,31 +109,28 @@ class QueryingTests(TestCase):
                     artifacts=[
                         ArtifactDetail(
                             name="Statue of Zeus",
-                            description="One of the Seven Wonders, created by Phidias.",
                             metadata={"location": "Olympia", "height_m": 12},
                         ),
                         ArtifactDetail(
                             name="Hanging Gardens",
-                            description="Legendary gardens of Babylon.",
-                            metadata={"debated_existence": True},
                         ),
-                    ],
-                ),
-                ExhibitSection(
-                    section_number=2,
-                    artifacts=[
-                        ArtifactDetail(
-                            name="Lighthouse of Alexandria",
-                            description="Guided sailors safely to port.",
-                            metadata={"height_m": 100, "built": "3rd century BC"},
-                        )
                     ],
                 ),
             ],
         )
         cls.new_descoveries = MuseumExhibit.objects.create(
             exhibit_name="New Discoveries",
-            sections=[ExhibitSection(section_number=1, artifacts=[])],
+            sections=[
+                ExhibitSection(
+                    section_number=1,
+                    artifacts=[
+                        ArtifactDetail(
+                            name="Lighthouse of Alexandria",
+                            metadata={"height_m": 100, "built": "3rd century BC"},
+                        )
+                    ],
+                )
+            ],
         )
         cls.lost_empires = MuseumExhibit.objects.create(
             exhibit_name="Lost Empires",
@@ -145,24 +139,20 @@ class QueryingTests(TestCase):
                 artifacts=[
                     ArtifactDetail(
                         name="Bronze Statue",
-                        description="Statue from the Hellenistic period.",
-                        metadata={"origin": "Pergamon", "material": "bronze"},
+                        metadata={"origin": "Pergamon"},
                         restorations=[
                             RestorationRecord(
                                 date=date(1998, 4, 15),
-                                description="Removed oxidized layer.",
-                                restored_by="Restoration Lab A",
+                                restored_by="Zacarias",
                             ),
                             RestorationRecord(
                                 date=date(2010, 7, 22),
-                                description="Reinforced the base structure.",
-                                restored_by="Dr. Liu Cheng",
+                                restored_by="Vicente",
                             ),
                         ],
                         last_restoration=RestorationRecord(
                             date=date(2010, 7, 22),
-                            description="Reinforced the base structure.",
-                            restored_by="Dr. Liu Cheng",
+                            restored_by="Monzon",
                         ),
                     )
                 ],
@@ -187,6 +177,15 @@ class QueryingTests(TestCase):
             ),
             [self.lost_empires],
         )
+
+    def test_filter_unsupported_lookups(self):
+        # handle the unsupported lookups as key in a keytransform
+
+        for lookup in ["contained_by", "contains", "contains", "range"]:
+            kwargs = {f"main_section__artifacts__metadata__origin__{lookup}": ["Pergamon", "Egypt"]}
+            with CaptureQueriesContext(connection) as captured_queries:
+                self.assertCountEqual(MuseumExhibit.objects.filter(**kwargs), [])
+                self.assertIn(f"'field': '{lookup}'", captured_queries[0]["sql"])
 
     def test_len(self):
         self.assertCountEqual(MuseumExhibit.objects.filter(sections__len=10), [])

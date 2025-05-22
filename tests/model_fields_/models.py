@@ -169,7 +169,6 @@ class Movie(models.Model):
 
 class RestorationRecord(EmbeddedModel):
     date = models.DateField()
-    description = models.TextField()
     restored_by = models.CharField(max_length=255)
 
 
@@ -177,7 +176,6 @@ class ArtifactDetail(EmbeddedModel):
     """Details about a specific artifact."""
 
     name = models.CharField(max_length=255)
-    description = models.CharField(max_length=255)
     metadata = models.JSONField()
     restorations = EmbeddedModelArrayField(RestorationRecord, null=True)
     last_restoration = EmbeddedModelField(RestorationRecord, null=True)
