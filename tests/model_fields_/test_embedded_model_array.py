@@ -181,7 +181,6 @@ class QueryingTests(TestCase):
 
     def test_filter_unsupported_lookups(self):
         # handle the unsupported lookups as key in a keytransform
-
         for lookup in ["contained_by", "contains", "contains", "range"]:
             kwargs = {f"main_section__artifacts__metadata__origin__{lookup}": ["Pergamon", "Egypt"]}
             with CaptureQueriesContext(connection) as captured_queries:
