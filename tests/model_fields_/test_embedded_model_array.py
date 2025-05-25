@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.core.exceptions import FieldDoesNotExist
 from django.db import connection, models
 from django.test import SimpleTestCase, TestCase
 from django.test.utils import CaptureQueriesContext, isolate_apps
@@ -221,6 +222,30 @@ class QueryingTests(TestCase):
         self.assertSequenceEqual(
             MuseumExhibit.objects.filter(sections__section_number__overlap=[3]), []
         )
+
+    def test_missing_field(self):
+        msg = "ExhibitSection has no field named 'section'"
+        with self.assertRaisesMessage(FieldDoesNotExist, msg):
+            self.assertSequenceEqual(
+                MuseumExhibit.objects.filter(sections__section__overlap=[10]), []
+            )
+
+    def test_missing_lookup(self):
+        msg = "Unsupported lookup 'return' for EmbeddedModelArrayField of type 'IntegerField'"
+        with self.assertRaisesMessage(FieldDoesNotExist, msg):
+            self.assertSequenceEqual(
+                MuseumExhibit.objects.filter(sections__section_number__return=3), []
+            )
+
+    def test_missing_lookup_suggestions(self):
+        msg = (
+            "Unsupported lookup 'ltee' for EmbeddedModelArrayField of 'IntegerField', "
+            "perhaps you meant lte or lt?"
+        )
+        with self.assertRaisesMessage(FieldDoesNotExist, msg):
+            self.assertSequenceEqual(
+                MuseumExhibit.objects.filter(sections__section_number__ltee=3), []
+            )
 
 
 @isolate_apps("model_fields_")

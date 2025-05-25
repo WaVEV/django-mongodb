@@ -135,7 +135,7 @@ class KeyTransform(Transform):
         self.key_name = key_name
         # The iteration items begins from the base_field, a virtual column with
         # base field output type is created.
-        column_target = array_field.base_field.embedded_model._meta.get_field(key_name).clone()
+        column_target = array_field.embedded_model._meta.get_field(key_name).clone()
         column_name = f"$item.{key_name}"
         column_target.db_column = column_name
         column_target.set_attributes_from_name(column_name)
@@ -155,10 +155,10 @@ class KeyTransform(Transform):
             suggested_lookups = " or ".join(suggested_lookups)
             suggestion = f", perhaps you meant {suggested_lookups}?"
         else:
-            suggestion = "."
+            suggestion = ""
         raise FieldDoesNotExist(
             f"Unsupported lookup '{name}' for "
-            f"{self.array_field.base_field.__class__.__name__} '{self.array_field.base_field.name}'"
+            f"EmbeddedModelArrayField of '{lhs.__class__.__name__}'"
             f"{suggestion}"
         )
 
@@ -169,17 +169,10 @@ class KeyTransform(Transform):
         """
         # Once the sub lhs is a transform, all the filter are applied over it.
         # Otherwise get transform from EMF.
-        transform = (
-            self._lhs.get_transform(name)
-            if isinstance(self._lhs, Transform)
-            else self.array_field.embedded_model._meta.get_field(self.key_name).get_transform(name)
-        )
-        if transform:
+        if transform := self._lhs.get_transform(name):
             self._sub_transform = transform
             return self
-        raise self._get_missing_field_or_lookup_exception(
-            self._lhs if isinstance(self._lhs, Transform) else self.base_field, name
-        )
+        raise self._get_missing_field_or_lookup_exception(self._lhs.output_field, name)
 
     def as_mql(self, compiler, connection):
         inner_lhs_mql = self._lhs.as_mql(compiler, connection)
