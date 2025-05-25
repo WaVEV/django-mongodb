@@ -66,22 +66,18 @@ class EmbeddedModelArrayField(ArrayField):
 class EMFArrayRHSMixin:
     def process_rhs(self, compiler, connection):
         values = self.rhs
-        if not self.get_db_prep_lookup_value_is_iterable:
-            values = [values]
-        # Compute how to serialize each value based on the query target.
+        # Value must be serealized based on the query target.
         # If querying a subfield inside the array (i.e., a nested KeyTransform), use the output
         # field of the subfield. Otherwise, use the base field of the array itself.
         if isinstance(self.lhs, KeyTransform):
             get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
         else:
             get_db_prep_value = self.lhs.output_field.base_field.get_db_prep_value
-        return None, [get_db_prep_value(v, connection, prepared=True) for v in values]
+        return None, [get_db_prep_value(values, connection, prepared=True)]
 
 
 @EmbeddedModelArrayField.register_lookup
 class EMFArrayExact(EMFArrayRHSMixin, lookups.Exact):
-    get_db_prep_lookup_value_is_iterable = False
-
     def as_mql(self, compiler, connection):
         if not isinstance(self.lhs, KeyTransform):
             raise ValueError("error")
@@ -106,7 +102,6 @@ class EMFArrayExact(EMFArrayRHSMixin, lookups.Exact):
 @EmbeddedModelArrayField.register_lookup
 class ArrayOverlap(EMFArrayRHSMixin, Lookup):
     lookup_name = "overlap"
-    get_db_prep_lookup_value_is_iterable = False
 
     def as_mql(self, compiler, connection):
         # Querying a subfield within the array elements (via nested KeyTransform).
@@ -134,7 +129,6 @@ class ArrayOverlap(EMFArrayRHSMixin, Lookup):
 
 
 class KeyTransform(Transform):
-    # it should be different class than EMF keytransform even most of the methods are equal.
     def __init__(self, key_name, array_field, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.array_field = array_field
@@ -174,12 +168,11 @@ class KeyTransform(Transform):
         lookup on an embedded model's field.
         """
         # Once the sub lhs is a transform, all the filter are applied over it.
+        # Otherwise get transform from EMF.
         transform = (
             self._lhs.get_transform(name)
             if isinstance(self._lhs, Transform)
-            else self.array_field.base_field.embedded_model._meta.get_field(
-                self.key_name
-            ).get_transform(name)
+            else self.array_field.embedded_model._meta.get_field(self.key_name).get_transform(name)
         )
         if transform:
             self._sub_transform = transform
