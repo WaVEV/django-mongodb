@@ -295,6 +295,120 @@ These indexes use 0-based indexing.
     As described above for :class:`EmbeddedModelField`,
     :djadmin:`makemigrations` does not yet detect changes to embedded models.
 
+Querying ``EmbeddedModelArrayField``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+There are a number of custom lookups and a transform for :class:`EmbeddedModelArrayField`, similar to those available for :class:`ArrayField`.
+We will use the following example model::
+
+    from django.db import models
+    from django_mongodb_backend.fields import EmbeddedModelArrayField, EmbeddedModelField,
+
+    class Tag(EmbeddedModel):
+        label = models.CharField(max_length=100)
+
+    class Post(models.Model):
+        name = models.CharField(max_length=200)
+        tags = EmbeddedModelArrayField(Tag)
+
+        def __str__(self):
+            return self.name
+
+.. fieldlookup:: embeddedmodelarrayfield.overlap
+
+``overlap``
+^^^^^^^^^^^
+
+Returns objects where any of the embedded documents in the field match any of the values passed. For example:
+
+.. code-block:: pycon
+
+    >>> Post.objects.create(
+    ...     name="First post", tags=[Tag(label="thoughts"), Tag(label="django")]
+    ... )
+    >>> Post.objects.create(name="Second post", tags=[Tag(label="thoughts")])
+    >>> Post.objects.create(
+    ...     name="Third post", tags=[Tag(label="tutorial"), Tag(label="django")]
+    ... )
+
+    >>> Post.objects.filter(tags__label__overlap=["thoughts"])
+    <QuerySet [<Post: First post>, <Post: Second post>]>
+
+    >>> Post.objects.filter(tags__label__overlap=["tutorial", "thoughts"])
+    <QuerySet [<Post: First post>, <Post: Second post>, <Post: Third post>]>
+
+.. fieldlookup:: embeddedmodelarrayfield.len
+
+``len``
+^^^^^^^
+
+Returns the length of the embedded model array. The lookups available afterward are those available for :class:`~django.db.models.IntegerField`. For example:
+
+.. code-block:: pycon
+
+    >>> Post.objects.create(
+    ...     name="First post", tags=[Tag(label="thoughts"), Tag(label="django")]
+    ... )
+    >>> Post.objects.create(name="Second post", tags=[Tag(label="thoughts")])
+
+    >>> Post.objects.filter(tags__len=1)
+    <QuerySet [<Post: Second post>]>
+
+.. fieldlookup:: embeddedmodelarrayfield.exact
+
+``exact``
+^^^^^^^^^
+
+Returns objects where **any** embedded model in the array exactly matches the given value. This acts like an existence filter on matching embedded documents.
+
+.. code-block:: pycon
+
+    >>> Post.objects.create(
+    ...     name="First post", tags=[Tag(label="thoughts"), Tag(label="django")]
+    ... )
+    >>> Post.objects.create(name="Second post", tags=[Tag(label="tutorial")])
+
+    >>> Post.objects.filter(tags__label__exact="tutorial")
+    <QuerySet [<Post: Second post>]>
+
+Note that this does **not** require the whole array to match, only that at least one embedded document matches exactly.
+
+Keytransforms
+^^^^^^^^^^^^^
+
+Key transforms for \:class:`EmbeddedModelArrayField` allow querying fields of the embedded model. The transform checks if **any** element in the array has a field matching the condition, similar to MongoDB behavior. For example:
+
+.. code-block:: pycon
+
+    >>> Post.objects.create(
+    ...     name="First post", tags=[Tag(label="thoughts"), Tag(label="django")]
+    ... )
+    >>> Post.objects.create(name="Second post", tags=[Tag(label="thoughts")])
+    >>> Post.objects.create(
+    ...     name="Third post",
+    ...     tags=[Tag(label="django"), Tag(label="python"), Tag(label="thoughts")],
+    ... )
+
+    >>> Post.objects.filter(tags__label="django")
+    <QuerySet [<Post: First post>, <Post: Third post>]>
+
+
+Transforms can be chained:
+
+.. code-block:: pycon
+
+    >>> Post.objects.filter(tags__label__icontains="djan")
+    <QuerySet [<Post: First post>, <Post: Third post>]>
+
+
+Indexed access is also supported:
+
+.. code-block:: pycon
+
+    >>> Post.objects.filter(tags__0__label="django")
+    <QuerySet [<Post: First post>]>
+
+
 ``ObjectIdAutoField``
 ---------------------
 
