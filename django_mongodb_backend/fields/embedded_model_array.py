@@ -12,7 +12,19 @@ from .array import ArrayField
 
 
 class EmbeddedModelArrayField(ArrayField):
-    ALLOWED_LOOKUPS = {"exact", "len", "overlap"}
+    ALLOWED_LOOKUPS = {
+        "in",
+        "exact",
+        "iexact",
+        "regex",
+        "iregex",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "all",
+        "contained_by",
+    }
 
     def __init__(self, embedded_model, **kwargs):
         if "size" in kwargs:
@@ -63,7 +75,7 @@ class EmbeddedModelArrayField(ArrayField):
         return super().get_lookup(name) if name in self.ALLOWED_LOOKUPS else None
 
 
-class EMFArrayRHSMixin:
+class EMFArrayBuildinLookup(Lookup):
     def check_lhs(self):
         if not isinstance(self.lhs, KeyTransform):
             raise ValueError(
@@ -72,20 +84,25 @@ class EMFArrayRHSMixin:
             )
 
     def process_rhs(self, compiler, connection):
-        values = self.rhs
+        value = self.rhs
+        if not self.get_db_prep_lookup_value_is_iterable:
+            value = [value]
         # Value must be serealized based on the query target.
-        # If querying a subfield inside the array (i.e., a nested KeyTransform), use the output
+        # If querying a subfield inside tche array (i.e., a nested KeyTransform), use the output
         # field of the subfield. Otherwise, use the base field of the array itself.
         get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
-        return None, [get_db_prep_value(values, connection, prepared=True)]
+        return None, [
+            v if hasattr(v, "as_mql") else get_db_prep_value(v, connection, prepared=True)
+            for v in value
+        ]
 
-
-@EmbeddedModelArrayField.register_lookup
-class EMFArrayExact(EMFArrayRHSMixin, lookups.Exact):
     def as_mql(self, compiler, connection):
         self.check_lhs()
+        # Querying a subfield within the array elements (via nested KeyTransform).
+        # Replicates MongoDB's implicit ANY-match by mapping over the array and applying
+        # `$in` on the subfield.
         lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
-        value = process_rhs(self, compiler, connection)
+        values = process_rhs(self, compiler, connection)
         return {
             "$anyElementTrue": {
                 "$ifNull": [
@@ -93,7 +110,9 @@ class EMFArrayExact(EMFArrayRHSMixin, lookups.Exact):
                         "$map": {
                             "input": lhs_mql,
                             "as": "item",
-                            "in": {"$eq": [inner_lhs_mql, value]},
+                            "in": connection.mongo_operators[self.lookup_name](
+                                inner_lhs_mql, values
+                            ),
                         }
                     },
                     [],
@@ -103,30 +122,89 @@ class EMFArrayExact(EMFArrayRHSMixin, lookups.Exact):
 
 
 @EmbeddedModelArrayField.register_lookup
-class ArrayOverlap(EMFArrayRHSMixin, Lookup):
-    lookup_name = "overlap"
+class EMFArrayIn(EMFArrayBuildinLookup, lookups.In):
+    pass
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayExact(EMFArrayBuildinLookup, lookups.Exact):
+    pass
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayIExact(EMFArrayBuildinLookup, lookups.IExact):
+    get_db_prep_lookup_value_is_iterable = False
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayGreaterThan(EMFArrayBuildinLookup, lookups.GreaterThan):
+    pass
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayGreaterThanOrEqual(EMFArrayBuildinLookup, lookups.GreaterThanOrEqual):
+    pass
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayLessThan(EMFArrayBuildinLookup, lookups.LessThan):
+    pass
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayLessThanOrEqual(EMFArrayBuildinLookup, lookups.LessThanOrEqual):
+    pass
+
+
+@EmbeddedModelArrayField.register_lookup
+class EMFArrayAll(EMFArrayBuildinLookup, Lookup):
+    lookup_name = "all"
+    get_db_prep_lookup_value_is_iterable = False
 
     def as_mql(self, compiler, connection):
         self.check_lhs()
-        # Querying a subfield within the array elements (via nested KeyTransform).
-        # Replicates MongoDB's implicit ANY-match by mapping over the array and applying
-        # `$in` on the subfield.
-        lhs_mql = process_lhs(self, compiler, connection)
+        lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
         values = process_rhs(self, compiler, connection)
-        lhs_mql, inner_lhs_mql = lhs_mql
         return {
-            "$anyElementTrue": {
-                "$ifNull": [
-                    {
-                        "$map": {
-                            "input": lhs_mql,
-                            "as": "item",
-                            "in": {"$in": [inner_lhs_mql, values]},
-                        }
-                    },
-                    [],
-                ]
+            "$setIsSubset": [
+                values,
+                {
+                    "$ifNull": [
+                        {
+                            "$map": {
+                                "input": lhs_mql,
+                                "as": "item",
+                                "in": inner_lhs_mql,
+                            }
+                        },
+                        [],
+                    ]
+                },
+            ]
+        }
+
+
+@EmbeddedModelArrayField.register_lookup
+class ArrayContainedBy(EMFArrayBuildinLookup, Lookup):
+    lookup_name = "contained_by"
+    get_db_prep_lookup_value_is_iterable = False
+
+    def as_mql(self, compiler, connection):
+        lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
+        lhs_mql = {
+            "$map": {
+                "input": lhs_mql,
+                "as": "item",
+                "in": inner_lhs_mql,
             }
+        }
+        value = process_rhs(self, compiler, connection)
+        return {
+            "$and": [
+                {"$ne": [lhs_mql, None]},
+                {"$ne": [value, None]},
+                {"$setIsSubset": [lhs_mql, value]},
+            ]
         }
 
 
@@ -159,6 +237,8 @@ class KeyTransform(Transform):
         # Once the sub lhs is a transform, all the filter are applied over it.
         # Otherwise get transform from EMF.
         if transform := self._lhs.get_transform(name):
+            if isinstance(transform, KeyTransformFactory):
+                raise ValueError("Cannot perform multiple levels of array traversal in a query.")
             self._sub_transform = transform
             return self
         output_field = self._lhs.output_field
