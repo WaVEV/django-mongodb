@@ -16,8 +16,6 @@ class EmbeddedModelArrayField(ArrayField):
         "in",
         "exact",
         "iexact",
-        "regex",
-        "iregex",
         "gt",
         "gte",
         "lt",
@@ -242,7 +240,10 @@ class KeyTransform(Transform):
             self._sub_transform = transform
             return self
         output_field = self._lhs.output_field
-        suggested_lookups = difflib.get_close_matches(name, output_field.get_lookups())
+        allowed_lookups = self.array_field.ALLOWED_LOOKUPS.intersection(
+            set(output_field.get_lookups())
+        )
+        suggested_lookups = difflib.get_close_matches(name, allowed_lookups)
         if suggested_lookups:
             suggested_lookups = " or ".join(suggested_lookups)
             suggestion = f", perhaps you meant {suggested_lookups}?"

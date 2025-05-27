@@ -270,6 +270,13 @@ class QueryingTests(TestCase):
         with self.assertRaisesMessage(FieldDoesNotExist, msg):
             MuseumExhibit.objects.filter(sections__section_number__return=3)
 
+    def test_missing_operation(self):
+        msg = "Unsupported lookup 'rage' for EmbeddedModelArrayField of 'IntegerField'"
+        with self.assertRaisesMessage(FieldDoesNotExist, msg):
+            self.assertCountEqual(
+                MuseumExhibit.objects.filter(sections__section_number__rage=[10]), []
+            )
+
     def test_missing_lookup_suggestions(self):
         msg = (
             "Unsupported lookup 'ltee' for EmbeddedModelArrayField of 'IntegerField', "
