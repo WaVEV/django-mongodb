@@ -298,11 +298,14 @@ These indexes use 0-based indexing.
 Querying ``EmbeddedModelArrayField``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-There are a number of custom lookups and a transform for :class:`EmbeddedModelArrayField`, similar to those available for :class:`ArrayField`.
+There are a number of custom lookups and a transform for
+:class:`EmbeddedModelArrayField`, similar to those available
+for :class:`ArrayField`.
 We will use the following example model::
 
     from django.db import models
-    from django_mongodb_backend.fields import EmbeddedModelArrayField, EmbeddedModelField,
+    from django_mongodb_backend.fields import EmbeddedModelArrayField
+
 
     class Tag(EmbeddedModel):
         label = models.CharField(max_length=100)
@@ -319,7 +322,8 @@ We will use the following example model::
 ``overlap``
 ^^^^^^^^^^^
 
-Returns objects where any of the embedded documents in the field match any of the values passed. For example:
+Returns objects where any of the embedded documents in the field match any of
+the values passed. For example:
 
 .. code-block:: pycon
 
@@ -342,7 +346,8 @@ Returns objects where any of the embedded documents in the field match any of th
 ``len``
 ^^^^^^^
 
-Returns the length of the embedded model array. The lookups available afterward are those available for :class:`~django.db.models.IntegerField`. For example:
+Returns the length of the embedded model array. The lookups available afterward
+are those available for :class:`~django.db.models.IntegerField`. For example:
 
 .. code-block:: pycon
 
@@ -359,7 +364,8 @@ Returns the length of the embedded model array. The lookups available afterward 
 ``exact``
 ^^^^^^^^^
 
-Returns objects where **any** embedded model in the array exactly matches the given value. This acts like an existence filter on matching embedded documents.
+Returns objects where **any** embedded model in the array exactly matches the
+given value. This acts like an existence filter on matching embedded documents.
 
 .. code-block:: pycon
 
@@ -371,12 +377,15 @@ Returns objects where **any** embedded model in the array exactly matches the gi
     >>> Post.objects.filter(tags__label__exact="tutorial")
     <QuerySet [<Post: Second post>]>
 
-Note that this does **not** require the whole array to match, only that at least one embedded document matches exactly.
+Note that this does **not** require the whole array to match, only that at
+least one embedded document matches exactly.
 
 Keytransforms
 ^^^^^^^^^^^^^
 
-Key transforms for \:class:`EmbeddedModelArrayField` allow querying fields of the embedded model. The transform checks if **any** element in the array has a field matching the condition, similar to MongoDB behavior. For example:
+Key transforms for :class:`EmbeddedModelArrayField` allow querying fields of
+the embedded model. The transform checks if **any** element in the array has a
+field matching the condition, similar to MongoDB behavior. For example:
 
 .. code-block:: pycon
 
@@ -392,12 +401,11 @@ Key transforms for \:class:`EmbeddedModelArrayField` allow querying fields of th
     >>> Post.objects.filter(tags__label="django")
     <QuerySet [<Post: First post>, <Post: Third post>]>
 
-
 Transforms can be chained:
 
 .. code-block:: pycon
 
-    >>> Post.objects.filter(tags__label__icontains="djan")
+    >>> Post.objects.filter(tags__label__overlap=["django"])
     <QuerySet [<Post: First post>, <Post: Third post>]>
 
 

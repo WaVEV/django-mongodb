@@ -11,9 +11,7 @@ New features
 ------------
 
 - Added :class:`~.fields.EmbeddedModelArrayField` for storing data as an array
-  of model instances.
-- Added support for ``exact``, ``overlap``, and ``len`` lookups on
-  :class:`~.fields.EmbeddedModelArrayField`.
+  of model instances and support. This field supports the ``exact``, ``overlap``, and ``len`` lookups.
 
 Bug fixes
 ---------
