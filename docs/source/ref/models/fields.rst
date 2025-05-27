@@ -317,10 +317,18 @@ We will use the following example model::
         def __str__(self):
             return self.name
 
-.. fieldlookup:: embeddedmodelarrayfield.overlap
+KeyTransform
+^^^^^^^^^^^^
 
-``overlap``
-^^^^^^^^^^^
+Key transforms for :class:`EmbeddedModelArrayField` allow querying fields of
+the embedded model. This is done by composing the two involved paths: the path
+to the ``EmbeddedModelArrayField`` and the path within the nested embedded model.
+This composition enables generating the appropriate query for the lookups.
+
+.. fieldlookup:: embeddedmodelarrayfield.in
+
+``in``
+^^^^^^
 
 Returns objects where any of the embedded documents in the field match any of
 the values passed. For example:
@@ -335,10 +343,10 @@ the values passed. For example:
     ...     name="Third post", tags=[Tag(label="tutorial"), Tag(label="django")]
     ... )
 
-    >>> Post.objects.filter(tags__label__overlap=["thoughts"])
+    >>> Post.objects.filter(tags__label__in=["thoughts"])
     <QuerySet [<Post: First post>, <Post: Second post>]>
 
-    >>> Post.objects.filter(tags__label__overlap=["tutorial", "thoughts"])
+    >>> Post.objects.filter(tags__label__in=["tutorial", "thoughts"])
     <QuerySet [<Post: First post>, <Post: Second post>, <Post: Third post>]>
 
 .. fieldlookup:: embeddedmodelarrayfield.len
@@ -377,45 +385,115 @@ given value. This acts like an existence filter on matching embedded documents.
     >>> Post.objects.filter(tags__label__exact="tutorial")
     <QuerySet [<Post: Second post>]>
 
-Note that this does **not** require the whole array to match, only that at
-least one embedded document matches exactly.
+.. fieldlookup:: embeddedmodelarrayfield.iexact
 
-Keytransforms
-^^^^^^^^^^^^^
+``iexact``
+^^^^^^^^^^
 
-Key transforms for :class:`EmbeddedModelArrayField` allow querying fields of
-the embedded model. The transform checks if **any** element in the array has a
-field matching the condition, similar to MongoDB behavior. For example:
+Returns objects where **any** embedded model in the array has a field that
+matches the given value **case-insensitively**. This works like ``exact`` but
+ignores letter casing.
 
 .. code-block:: pycon
+
 
     >>> Post.objects.create(
-    ...     name="First post", tags=[Tag(label="thoughts"), Tag(label="django")]
+    ...     name="First post", tags=[Tag(label="Thoughts"), Tag(label="Django")]
     ... )
-    >>> Post.objects.create(name="Second post", tags=[Tag(label="thoughts")])
-    >>> Post.objects.create(
-    ...     name="Third post",
-    ...     tags=[Tag(label="django"), Tag(label="python"), Tag(label="thoughts")],
-    ... )
+    >>> Post.objects.create(name="Second post", tags=[Tag(label="tutorial")])
 
-    >>> Post.objects.filter(tags__label="django")
-    <QuerySet [<Post: First post>, <Post: Third post>]>
-
-Transforms can be chained:
-
-.. code-block:: pycon
-
-    >>> Post.objects.filter(tags__label__overlap=["django"])
-    <QuerySet [<Post: First post>, <Post: Third post>]>
-
-
-Indexed access is also supported:
-
-.. code-block:: pycon
-
-    >>> Post.objects.filter(tags__0__label="django")
+    >>> Post.objects.filter(tags__label__iexact="django")
     <QuerySet [<Post: First post>]>
 
+    >>> Post.objects.filter(tags__label__iexact="TUTORIAL")
+    <QuerySet [<Post: Second post>]>
+
+.. fieldlookup:: embeddedmodelarrayfield.gt
+.. fieldlookup:: embeddedmodelarrayfield.gte
+.. fieldlookup:: embeddedmodelarrayfield.lt
+.. fieldlookup:: embeddedmodelarrayfield.lte
+
+``Greater Than, Greater Than or Equal, Less Than, Less Than or Equal``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These lookups return objects where **any** embedded document contains a value
+that satisfies the corresponding comparison. These are typically used on
+numeric or comparable fields within the embedded model.
+
+Examples:
+
+.. code-block:: pycon
+
+    Post.objects.create(
+        name="First post", tags=[Tag(label="django", rating=5), Tag(label="rest", rating=3)]
+    )
+    Post.objects.create(
+        name="Second post", tags=[Tag(label="python", rating=2)]
+    )
+
+    Post.objects.filter(tags__rating__gt=3)
+    <QuerySet [<Post: First post>]>
+
+    Post.objects.filter(tags__rating__gte=3)
+    <QuerySet [<Post: First post>, <Post: Second post>]>
+
+    Post.objects.filter(tags__rating__lt=3)
+    <QuerySet []>
+
+    Post.objects.filter(tags__rating__lte=3)
+    <QuerySet [<Post: First post>, <Post: Second post>]>
+
+.. fieldlookup:: embeddedmodelarrayfield.all
+
+``all``
+^^^^^^^
+
+Returns objects where **all** values provided on the right-hand side are
+present. It requires that *every* value be matched by some document in
+the array.
+
+Example:
+
+.. code-block:: pycon
+
+    Post.objects.create(
+        name="First post", tags=[Tag(label="django"), Tag(label="rest")]
+    )
+    Post.objects.create(
+        name="Second post", tags=[Tag(label="django")]
+    )
+
+    Post.objects.filter(tags__label__all=["django", "rest"])
+    <QuerySet [<Post: First post>]>
+
+    Post.objects.filter(tags__label__all=["django"])
+    <QuerySet [<Post: First post>, <Post: Second post>]>
+
+.. fieldlookup:: embeddedmodelarrayfield.contained_by
+
+``contained_by``
+^^^^^^^^^^^^^^^^
+
+Returns objects where the embedded model array is **contained by** the list of
+values on the right-hand side. In other words, every value in the embedded
+array must be present in the given list.
+
+Example:
+
+.. code-block:: pycon
+
+    Post.objects.create(
+        name="First post", tags=[Tag(label="django"), Tag(label="rest")]
+    )
+    Post.objects.create(
+        name="Second post", tags=[Tag(label="django")]
+    )
+
+    Post.objects.filter(tags__label__contained_by=["django", "rest", "api"])
+    <QuerySet [<Post: First post>, <Post: Second post>]>
+
+    Post.objects.filter(tags__label__contained_by=["django"])
+    <QuerySet [<Post: Second post>]>
 
 ``ObjectIdAutoField``
 ---------------------
