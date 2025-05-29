@@ -85,8 +85,8 @@ class EMFArrayBuildinLookup(Lookup):
         value = self.rhs
         if not self.get_db_prep_lookup_value_is_iterable:
             value = [value]
-        # Value must be serealized based on the query target.
-        # If querying a subfield inside tche array (i.e., a nested KeyTransform), use the output
+        # Value must be serialized based on the query target.
+        # If querying a subfield inside the array (i.e., a nested KeyTransform), use the output
         # field of the subfield. Otherwise, use the base field of the array itself.
         get_db_prep_value = self.lhs._lhs.output_field.get_db_prep_value
         return None, [
