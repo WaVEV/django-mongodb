@@ -317,12 +317,13 @@ We will use the following example model::
         def __str__(self):
             return self.name
 
-KeyTransform
-^^^^^^^^^^^^
+Embedded field lookup
+^^^^^^^^^^^^^^^^^^^^^
 
-Key transforms for :class:`EmbeddedModelArrayField` allow querying fields of
-the embedded model. This is done by composing the two involved paths: the path
-to the ``EmbeddedModelArrayField`` and the path within the nested embedded model.
+Embedded field lookup for :class:`EmbeddedModelArrayField` allow querying
+fields of the embedded model. This is done by composing the two involved paths:
+the path to the ``EmbeddedModelArrayField`` and the path within the nested
+embedded model.
 This composition enables generating the appropriate query for the lookups.
 
 .. fieldlookup:: embeddedmodelarrayfield.in
