@@ -73,7 +73,7 @@ class EmbeddedModelArrayField(ArrayField):
         return super().get_lookup(name) if name in self.ALLOWED_LOOKUPS else None
 
 
-class EMFArrayBuildinLookup(Lookup):
+class EmbeddedModelArrayFieldBuiltinLookup(Lookup):
     def check_lhs(self):
         if not isinstance(self.lhs, KeyTransform):
             raise ValueError(
@@ -120,42 +120,46 @@ class EMFArrayBuildinLookup(Lookup):
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayIn(EMFArrayBuildinLookup, lookups.In):
+class EmbeddedModelArrayFieldIn(EmbeddedModelArrayFieldBuiltinLookup, lookups.In):
     pass
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayExact(EMFArrayBuildinLookup, lookups.Exact):
+class EmbeddedModelArrayFieldExact(EmbeddedModelArrayFieldBuiltinLookup, lookups.Exact):
     pass
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayIExact(EMFArrayBuildinLookup, lookups.IExact):
+class EmbeddedModelArrayFieldIExact(EmbeddedModelArrayFieldBuiltinLookup, lookups.IExact):
     get_db_prep_lookup_value_is_iterable = False
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayGreaterThan(EMFArrayBuildinLookup, lookups.GreaterThan):
+class EmbeddedModelArrayFieldGreaterThan(EmbeddedModelArrayFieldBuiltinLookup, lookups.GreaterThan):
     pass
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayGreaterThanOrEqual(EMFArrayBuildinLookup, lookups.GreaterThanOrEqual):
+class EmbeddedModelArrayFieldGreaterThanOrEqual(
+    EmbeddedModelArrayFieldBuiltinLookup, lookups.GreaterThanOrEqual
+):
     pass
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayLessThan(EMFArrayBuildinLookup, lookups.LessThan):
+class EmbeddedModelArrayFieldLessThan(EmbeddedModelArrayFieldBuiltinLookup, lookups.LessThan):
     pass
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayLessThanOrEqual(EMFArrayBuildinLookup, lookups.LessThanOrEqual):
+class EmbeddedModelArrayFieldLessThanOrEqual(
+    EmbeddedModelArrayFieldBuiltinLookup, lookups.LessThanOrEqual
+):
     pass
 
 
 @EmbeddedModelArrayField.register_lookup
-class EMFArrayAll(EMFArrayBuildinLookup, Lookup):
+class EmbeddedModelArrayFieldAll(EmbeddedModelArrayFieldBuiltinLookup, Lookup):
     lookup_name = "all"
     get_db_prep_lookup_value_is_iterable = False
 
@@ -183,7 +187,7 @@ class EMFArrayAll(EMFArrayBuildinLookup, Lookup):
 
 
 @EmbeddedModelArrayField.register_lookup
-class ArrayContainedBy(EMFArrayBuildinLookup, Lookup):
+class ArrayContainedBy(EmbeddedModelArrayFieldBuiltinLookup, Lookup):
     lookup_name = "contained_by"
     get_db_prep_lookup_value_is_iterable = False
 
