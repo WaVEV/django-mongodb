@@ -186,7 +186,7 @@ class QueryingTests(TestCase):
     def test_contained_by(self):
         self.assertCountEqual(
             MuseumExhibit.objects.filter(sections__section_number__contained_by=[1, 2, 3]),
-            [self.egypt, self.new_descoveries, self.wonders],
+            [self.egypt, self.new_descoveries, self.wonders, self.lost_empires],
         )
 
     def test_len_filter(self):
@@ -258,12 +258,15 @@ class QueryingTests(TestCase):
             "Try querying one of its embedded fields instead."
         )
         with self.assertRaisesMessage(ValueError, msg):
-            self.assertCountEqual(MuseumExhibit.objects.filter(sections=10), [])
+            MuseumExhibit.objects.filter(sections=10).first()
+
+        with self.assertRaisesMessage(ValueError, msg):
+            MuseumExhibit.objects.filter(sections__0_1=10).first()
 
     def test_missing_field(self):
         msg = "ExhibitSection has no field named 'section'"
         with self.assertRaisesMessage(FieldDoesNotExist, msg):
-            self.assertCountEqual(MuseumExhibit.objects.filter(sections__section__in=[10]), [])
+            MuseumExhibit.objects.filter(sections__section__in=[10]).first()
 
     def test_missing_lookup(self):
         msg = "Unsupported lookup 'return' for EmbeddedModelArrayField of 'IntegerField'"
@@ -273,9 +276,7 @@ class QueryingTests(TestCase):
     def test_missing_operation(self):
         msg = "Unsupported lookup 'rage' for EmbeddedModelArrayField of 'IntegerField'"
         with self.assertRaisesMessage(FieldDoesNotExist, msg):
-            self.assertCountEqual(
-                MuseumExhibit.objects.filter(sections__section_number__rage=[10]), []
-            )
+            MuseumExhibit.objects.filter(sections__section_number__rage=[10])
 
     def test_missing_lookup_suggestions(self):
         msg = (
@@ -289,6 +290,11 @@ class QueryingTests(TestCase):
         msg = "Cannot perform multiple levels of array traversal in a query."
         with self.assertRaisesMessage(ValueError, msg):
             MuseumExhibit.objects.filter(sections__artifacts__name="")
+
+    def test_slice(self):
+        self.assertSequenceEqual(
+            MuseumExhibit.objects.filter(sections__0_1__section_number=2), [self.new_descoveries]
+        )
 
 
 @isolate_apps("model_fields_")

@@ -8,22 +8,10 @@ from django.db.models.lookups import Lookup, Transform
 from .. import forms
 from ..query_utils import process_lhs, process_rhs
 from . import EmbeddedModelField
-from .array import ArrayField
+from .array import ArrayField, ArrayLenTransform
 
 
 class EmbeddedModelArrayField(ArrayField):
-    ALLOWED_LOOKUPS = {
-        "in",
-        "exact",
-        "iexact",
-        "gt",
-        "gte",
-        "lt",
-        "lte",
-        "all",
-        "contained_by",
-    }
-
     def __init__(self, embedded_model, **kwargs):
         if "size" in kwargs:
             raise ValueError("EmbeddedModelArrayField does not support size.")
@@ -69,18 +57,50 @@ class EmbeddedModelArrayField(ArrayField):
             return transform
         return KeyTransformFactory(name, self)
 
+    def _get_lookup(self, lookup_name):
+        lookup = super()._get_lookup(lookup_name)
+        if lookup is None or lookup is ArrayLenTransform:
+            return lookup
+
+        class EmbeddedModelArrayFieldLookups(Lookup):
+            def as_mql(self, compiler, connection):
+                raise ValueError(
+                    "Cannot apply this lookup directly to EmbeddedModelArrayField. "
+                    "Try querying one of its embedded fields instead."
+                )
+
+        return EmbeddedModelArrayFieldLookups
+
+
+class _EmbeddedModelArrayOutputField(ArrayField):
+    """
+    Represents the output of an EmbeddedModelArrayField when traversed in a query path.
+
+    This field is not meant to be used directly in model definitions. It exists solely to
+    support query output resolution; when an EmbeddedModelArrayField is accessed in a query,
+    the result should behave like an array of the embedded model's target type.
+
+    While it mimics ArrayField's lookups behavior, the way those lookups are resolved
+    follows the semantics of EmbeddedModelArrayField rather than native array behavior.
+    """
+
+    ALLOWED_LOOKUPS = {
+        "in",
+        "exact",
+        "iexact",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "all",
+        "contained_by",
+    }
+
     def get_lookup(self, name):
         return super().get_lookup(name) if name in self.ALLOWED_LOOKUPS else None
 
 
 class EmbeddedModelArrayFieldBuiltinLookup(Lookup):
-    def check_lhs(self):
-        if not isinstance(self.lhs, KeyTransform):
-            raise ValueError(
-                "Cannot apply this lookup directly to EmbeddedModelArrayField. "
-                "Try querying one of its embedded fields instead."
-            )
-
     def process_rhs(self, compiler, connection):
         value = self.rhs
         if not self.get_db_prep_lookup_value_is_iterable:
@@ -95,111 +115,114 @@ class EmbeddedModelArrayFieldBuiltinLookup(Lookup):
         ]
 
     def as_mql(self, compiler, connection):
-        self.check_lhs()
         # Querying a subfield within the array elements (via nested KeyTransform).
         # Replicates MongoDB's implicit ANY-match by mapping over the array and applying
         # `$in` on the subfield.
-        lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
+        lhs_mql = process_lhs(self, compiler, connection)
+        inner_lhs_mql = lhs_mql["$ifNull"][0]["$map"]["in"]
         values = process_rhs(self, compiler, connection)
-        return {
-            "$anyElementTrue": {
-                "$ifNull": [
-                    {
-                        "$map": {
-                            "input": lhs_mql,
-                            "as": "item",
-                            "in": connection.mongo_operators[self.lookup_name](
-                                inner_lhs_mql, values
-                            ),
-                        }
-                    },
-                    [],
-                ]
-            }
-        }
+        lhs_mql["$ifNull"][0]["$map"]["in"] = connection.mongo_operators[self.lookup_name](
+            inner_lhs_mql, values
+        )
+        return {"$anyElementTrue": lhs_mql}
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldIn(EmbeddedModelArrayFieldBuiltinLookup, lookups.In):
-    pass
+    def get_subquery_wrapping_pipeline(self, compiler, connection, field_name, expr):
+        return [
+            {
+                "$facet": {
+                    "group": [
+                        {"$project": {"tmp_name": expr.as_mql(compiler, connection)}},
+                        {
+                            "$unwind": "$tmp_name",
+                        },
+                        {
+                            "$group": {
+                                "_id": None,
+                                "tmp_name": {"$addToSet": "$tmp_name"},
+                            }
+                        },
+                    ]
+                }
+            },
+            {
+                "$project": {
+                    field_name: {
+                        "$ifNull": [
+                            {
+                                "$getField": {
+                                    "input": {"$arrayElemAt": ["$group", 0]},
+                                    "field": "tmp_name",
+                                }
+                            },
+                            [],
+                        ]
+                    }
+                }
+            },
+        ]
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldExact(EmbeddedModelArrayFieldBuiltinLookup, lookups.Exact):
     pass
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldIExact(EmbeddedModelArrayFieldBuiltinLookup, lookups.IExact):
     get_db_prep_lookup_value_is_iterable = False
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldGreaterThan(EmbeddedModelArrayFieldBuiltinLookup, lookups.GreaterThan):
     pass
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldGreaterThanOrEqual(
     EmbeddedModelArrayFieldBuiltinLookup, lookups.GreaterThanOrEqual
 ):
     pass
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldLessThan(EmbeddedModelArrayFieldBuiltinLookup, lookups.LessThan):
     pass
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldLessThanOrEqual(
     EmbeddedModelArrayFieldBuiltinLookup, lookups.LessThanOrEqual
 ):
     pass
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class EmbeddedModelArrayFieldAll(EmbeddedModelArrayFieldBuiltinLookup, Lookup):
     lookup_name = "all"
     get_db_prep_lookup_value_is_iterable = False
 
     def as_mql(self, compiler, connection):
-        self.check_lhs()
-        lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
+        lhs_mql = process_lhs(self, compiler, connection)
         values = process_rhs(self, compiler, connection)
         return {
-            "$setIsSubset": [
-                values,
-                {
-                    "$ifNull": [
-                        {
-                            "$map": {
-                                "input": lhs_mql,
-                                "as": "item",
-                                "in": inner_lhs_mql,
-                            }
-                        },
-                        [],
-                    ]
-                },
+            "$and": [
+                {"$ne": [lhs_mql, None]},
+                {"$ne": [values, None]},
+                {"$setIsSubset": [values, lhs_mql]},
             ]
         }
 
 
-@EmbeddedModelArrayField.register_lookup
+@_EmbeddedModelArrayOutputField.register_lookup
 class ArrayContainedBy(EmbeddedModelArrayFieldBuiltinLookup, Lookup):
     lookup_name = "contained_by"
     get_db_prep_lookup_value_is_iterable = False
 
     def as_mql(self, compiler, connection):
-        lhs_mql, inner_lhs_mql = process_lhs(self, compiler, connection)
-        lhs_mql = {
-            "$map": {
-                "input": lhs_mql,
-                "as": "item",
-                "in": inner_lhs_mql,
-            }
-        }
+        lhs_mql = process_lhs(self, compiler, connection)
         value = process_rhs(self, compiler, connection)
         return {
             "$and": [
@@ -244,7 +267,7 @@ class KeyTransform(Transform):
             self._sub_transform = transform
             return self
         output_field = self._lhs.output_field
-        allowed_lookups = self.array_field.ALLOWED_LOOKUPS.intersection(
+        allowed_lookups = self.output_field.ALLOWED_LOOKUPS.intersection(
             set(output_field.get_lookups())
         )
         suggested_lookups = difflib.get_close_matches(name, allowed_lookups)
@@ -262,11 +285,22 @@ class KeyTransform(Transform):
     def as_mql(self, compiler, connection):
         inner_lhs_mql = self._lhs.as_mql(compiler, connection)
         lhs_mql = process_lhs(self, compiler, connection)
-        return lhs_mql, inner_lhs_mql
+        return {
+            "$ifNull": [
+                {
+                    "$map": {
+                        "input": lhs_mql,
+                        "as": "item",
+                        "in": inner_lhs_mql,
+                    }
+                },
+                [],
+            ]
+        }
 
     @property
     def output_field(self):
-        return self.array_field
+        return _EmbeddedModelArrayOutputField(self._lhs.output_field)
 
 
 class KeyTransformFactory:
