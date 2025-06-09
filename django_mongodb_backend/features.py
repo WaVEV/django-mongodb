@@ -86,6 +86,7 @@ class DatabaseFeatures(BaseDatabaseFeatures):
         # Value.as_mql() doesn't call output_field.get_db_prep_save():
         # https://github.com/mongodb/django-mongodb-backend/issues/282
         "model_fields.test_jsonfield.TestSaveLoad.test_bulk_update_custom_get_prep_value",
+        "model_fields_.test_embedded_model_array.QueryingTests.test_array_annotation_index",
     }
     # $bitAnd, #bitOr, and $bitXor are new in MongoDB 6.3.
     _django_test_expected_failures_bitwise = {

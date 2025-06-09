@@ -310,6 +310,29 @@ class QueryingTests(TestCase):
         )
         self.assertCountEqual(result, [self.new_descoveries])
 
+    def test_array_annotation_as_rhs(self):
+        result = Exhibit.objects.annotate(
+            section_numbers=models.F("main_section__section_number")
+        ).filter(section_numbers__in=models.F("sections__section_number"))
+        self.assertCountEqual(result, [self.new_descoveries])
+
+    def test_array_annotation_index(self):
+        # This test would be useful to have, but it cannot be implemented
+        # due to the current annotation handling.
+        # Supporting slicing or indexing over an annotated
+        # Embedded Array Field would require a refactor.
+        result = Exhibit.objects.annotate(
+            section_numbers=models.F("sections__section_number")
+        ).filter(section_numbers__0=1)
+        self.assertCountEqual(result, [self.new_descoveries, self.egypt])
+
+    def test_array_annotation(self):
+        results = Exhibit.objects.annotate(
+            section_numbers=models.F("sections__section_number")
+        ).all()
+        sections_numbers = [e.section_numbers for e in results]
+        self.assertCountEqual(sections_numbers, [[1], [1, 2], [2], []])
+
 
 @isolate_apps("model_fields_")
 class CheckTests(SimpleTestCase):
