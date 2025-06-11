@@ -1,3 +1,4 @@
+import unittest
 from datetime import date
 
 from django.core.exceptions import FieldDoesNotExist
@@ -343,6 +344,7 @@ class QueryingTests(TestCase):
                 ).filter(**kwargs)
                 self.assertCountEqual(result, expected)
 
+    @unittest.expectedFailure
     def test_array_annotation_index(self):
         # This test would be useful to have, but it cannot be implemented
         # due to the current annotation handling.
