@@ -167,8 +167,9 @@ class Review(EmbeddedModel):
         return self.title
 
 
+# A review entry for a section in the museum.
 class Audit(models.Model):
-    related_section_number = models.IntegerField()
+    section_number = models.IntegerField()
     reviewed = models.BooleanField()
 
 
