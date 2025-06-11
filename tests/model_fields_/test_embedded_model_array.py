@@ -323,7 +323,7 @@ class QueryingTests(TestCase):
         ).filter(section_numbers__in=models.F("sections__section_number"))
         self.assertCountEqual(result, [self.new_descoveries])
 
-    def test_arrayfield_annotation_lookups(self):
+    def test_array_as_rhs_behavior_for_arrayfield_lookups(self):
         lookup_expected_value = [
             ("exact", [self.wonders]),
             ("lt", [self.new_descoveries]),
